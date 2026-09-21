@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="96" fill="#111418"/>
+  <!-- levha -->
+  <rect x="86" y="126" width="340" height="240" rx="10" fill="#1e242c" stroke="#2a323c" stroke-width="8"/>
+  <!-- kesim çizgileri -->
+  <path d="M86 236h340M256 126v240" stroke="#2a323c" stroke-width="8"/>
+  <!-- bantlı kenar -->
+  <path d="M86 126h340" stroke="#f59e0b" stroke-width="16" stroke-linecap="round"/>
+  <!-- ölçü oku -->
+  <path d="M120 406h272" stroke="#38bdf8" stroke-width="12" stroke-linecap="round"/>
+  <path d="M120 386v40M392 386v40" stroke="#38bdf8" stroke-width="12" stroke-linecap="round"/>
+</svg>

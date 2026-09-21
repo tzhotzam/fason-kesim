@@ -1,0 +1,17 @@
+{
+  "name": "Fason Kesim — Ölçü Okuyucu",
+  "short_name": "Fason Kesim",
+  "description": "Müşterinin elle yazdığı kesim listesinin fotoğrafından ölçüleri okur, Excel'e aktarır.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1216",
+  "theme_color": "#111418",
+  "lang": "tr",
+  "dir": "ltr",
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

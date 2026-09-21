@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111418">
+<meta name="app-version" content="2026-09-21-a">
+<meta name="description" content="Müşterinin elle yazdığı kesim listesinin fotoğrafından ölçüleri okur, Excel'e aktarır.">
+<title>Fason Kesim — Ölçü Okuyucu</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>📐</text></svg>">
+<script>
+// SÜRÜM KURTARMA — bilerek satır içi ve modülsüz.
+// Tarayıcı yeni index.html'i alıp eski js dosyalarını önbellekten verebiliyor.
+// Kurtarma kodu js içinde olsaydı tam da çalışması gereken durumda bayat
+// olurdu. Bu betik HTML'in parçası olduğu için her zaman günceldir.
+(function () {
+  var V = '2026-09-21-a';
+  var ANAHTAR = 'fason-kesim-surum';
+  try {
+    if (localStorage.getItem(ANAHTAR) === V) return;
+    localStorage.setItem(ANAHTAR, V);
+  } catch (e) { return; }
+
+  var isler = [];
+  if (window.caches) {
+    isler.push(caches.keys().then(function (ks) {
+      return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+    }));
+  }
+  if (navigator.serviceWorker) {
+    isler.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+      return Promise.all(rs.map(function (r) { return r.unregister(); }));
+    }));
+  }
+  if (!isler.length) return;
+  Promise.all(isler).catch(function () {}).then(function () { location.reload(); });
+})();
+</script>
+</head>
+<body>
+
+<header class="ustcubuk">
+  <h1>📐 Fason Kesim — Ölçü Okuyucu</h1>
+  <p class="altyazi">Müşteri kâğıdının fotoğrafını çek, ölçüler Excel'e insin.</p>
+</header>
+
+<main>
+
+<!-- 1. FOTOĞRAF -->
+<section class="kart" id="bolum-foto">
+  <h2><span class="adim">1</span> Fotoğraf</h2>
+
+  <div class="dugmeler">
+    <label class="dugme birincil">
+      📷 Fotoğraf çek / seç
+      <input type="file" id="dosya-girisi" accept="image/*" multiple hidden>
+    </label>
+    <button type="button" class="dugme" id="foto-temizle" hidden>Hepsini kaldır</button>
+  </div>
+
+  <div id="birakma-alani" class="birakma">
+    Fotoğrafı buraya sürükleyebilirsin.
+    <small>Kâğıt çok kalabalıksa üst yarısı / alt yarısı diye iki fotoğraf çek — daha net okur.</small>
+  </div>
+
+  <div id="foto-listesi" class="foto-listesi"></div>
+</section>
+
+<!-- 2. ANAHTAR + OKU -->
+<section class="kart" id="bolum-oku">
+  <h2><span class="adim">2</span> Oku</h2>
+
+  <details id="anahtar-kutusu" class="katlanir">
+    <summary>API anahtarı <span id="anahtar-durum" class="rozet"></span></summary>
+    <div class="katlanir-ic">
+      <p class="ipucu">
+        Okuma işini Anthropic'in Claude modeli yapıyor. Anahtarı bir kez
+        girersin, bu cihazın tarayıcısında kalır — hiçbir sunucuya gitmez.
+        Anahtarı <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>
+        adresinden alıyorsun.
+      </p>
+      <div class="satir">
+        <input type="password" id="api-anahtari" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+        <button type="button" class="dugme kucuk" id="anahtar-goster">Göster</button>
+        <button type="button" class="dugme kucuk" id="anahtar-sil">Sil</button>
+      </div>
+    </div>
+  </details>
+
+  <div class="satir">
+    <label class="alan genis">
+      <span>Ustadan not <small>(isteğe bağlı)</small></span>
+      <input type="text" id="ek-bilgi" placeholder="ör. ölçüler cm, sağ sütun adet">
+    </label>
+  </div>
+
+  <div class="dugmeler">
+    <button type="button" class="dugme birincil buyuk" id="oku-dugmesi" disabled>Ölçüleri oku</button>
+    <button type="button" class="dugme" id="iptal-dugmesi" hidden>Vazgeç</button>
+  </div>
+
+  <div id="durum" class="durum" role="status" aria-live="polite"></div>
+</section>
+
+<!-- 3. KONTROL + EXCEL -->
+<section class="kart" id="bolum-tablo" hidden>
+  <h2><span class="adim">3</span> Kontrol et ve indir</h2>
+
+  <div class="satir ust-bilgi">
+    <label class="alan"><span>Müşteri</span><input type="text" id="musteri"></label>
+    <label class="alan"><span>Malzeme</span><input type="text" id="malzeme"></label>
+    <label class="alan dar">
+      <span>Birim</span>
+      <select id="birim"><option value="mm">mm</option><option value="cm">cm</option></select>
+    </label>
+  </div>
+
+  <div id="notlar" class="notlar" hidden></div>
+
+  <div class="tablo-sarmal">
+    <table id="tablo">
+      <thead>
+        <tr>
+          <th class="sag">#</th>
+          <th>En</th>
+          <th>Boy</th>
+          <th>Adet</th>
+          <th>Bant</th>
+          <th>Açıklama</th>
+          <th>Kâğıtta yazan</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tablo-govde"></tbody>
+    </table>
+  </div>
+
+  <div class="satir ekle-satir">
+    <input type="text" id="hizli-giris" placeholder="Elle ekle:  720x570 10 1U1K  ↵">
+    <button type="button" class="dugme" id="satir-ekle">Ekle</button>
+  </div>
+
+  <div id="ozet" class="ozet"></div>
+
+  <div class="dugmeler">
+    <button type="button" class="dugme birincil buyuk" id="excel-indir">⬇ Excel (.xlsx)</button>
+    <button type="button" class="dugme" id="csv-indir">CSV</button>
+    <button type="button" class="dugme" id="panoya-kopyala">Panoya kopyala</button>
+    <button type="button" class="dugme silik" id="tabloyu-temizle">Tabloyu temizle</button>
+  </div>
+</section>
+
+</main>
+
+<!-- Fotoğrafı büyütme -->
+<div id="buyutec" class="buyutec" hidden>
+  <img id="buyutec-resim" alt="Fotoğraf">
+  <button type="button" class="buyutec-kapat" id="buyutec-kapat" aria-label="Kapat">✕</button>
+</div>
+
+<footer>
+  <p>
+    Fotoğraflar ve anahtar cihazında kalır; okuma sırasında fotoğraf yalnızca
+    Anthropic'e gider. Program bir yardımcıdır — kesmeden önce ölçüleri
+    kâğıtla karşılaştır.
+  </p>
+</footer>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
