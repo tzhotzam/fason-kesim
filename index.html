@@ -72,17 +72,30 @@
 <section class="kart" id="bolum-oku">
   <h2><span class="adim">2</span> Oku</h2>
 
-  <details id="anahtar-kutusu" class="katlanir">
-    <summary>API anahtarı <span id="anahtar-durum" class="rozet"></span></summary>
+  <details id="anahtar-kutusu" class="katlanir vurgu">
+    <summary>🔑 API anahtarı <span id="anahtar-durum" class="rozet"></span></summary>
     <div class="katlanir-ic">
       <p class="ipucu">
-        Okuma işini Anthropic'in Claude modeli yapıyor. Anahtarı bir kez
-        girersin, bu cihazın tarayıcısında kalır — hiçbir sunucuya gitmez.
-        Anahtarı <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>
-        adresinden alıyorsun.
+        Kâğıdı okuyan Claude adlı yapay zekâ. Ona ulaşmak için bir
+        <b>anahtar</b> gerekiyor — telefonun SIM kartı gibi düşün.
+        <b>Bir kez</b> girersin, bu cihazda kalır, bir daha sorulmaz.
+        Hiçbir sunucuya gitmez.
+      </p>
+      <ol class="adimlar">
+        <li>
+          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>
+          adresine gir, hesap aç (Google ile girebilirsin).
+        </li>
+        <li><b>Billing</b> bölümünden kart ekleyip kredi yükle (en az 5 $).</li>
+        <li><b>API keys</b> → <b>Create Key</b> de, çıkan uzun yazıyı kopyala.</li>
+        <li>Aşağıya yapıştır. Bitti.</li>
+      </ol>
+      <p class="ipucu">
+        Bir kâğıt okumak 3–8 sent tutuyor; 5 dolar yüzlerce kâğıt eder.
+        Telefonu başkasına veriyorsan <b>Sil</b>'e bas.
       </p>
       <div class="satir">
-        <input type="password" id="api-anahtari" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+        <input type="password" id="api-anahtari" placeholder="sk-ant-... (buraya yapıştır)" autocomplete="off" spellcheck="false">
         <button type="button" class="dugme kucuk" id="anahtar-goster">Göster</button>
         <button type="button" class="dugme kucuk" id="anahtar-sil">Sil</button>
       </div>

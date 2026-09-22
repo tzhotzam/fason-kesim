@@ -169,8 +169,22 @@ try {
   await p.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
   bak(await p.title() === 'Fason Kesim — Ölçü Okuyucu', 'sayfa açıldı');
 
+  // Anahtar yokken düğme ölü durmamalı: ne gerektiğini söylemeli ve
+  // basınca anahtar kutusuna götürmeli. (Usta "düğme koyu, deneyemedim"
+  // dediği için eklendi.)
+  bak(!(await p.isDisabled('#oku-dugmesi')), 'anahtar yokken düğme ölü değil');
+  bak((await p.textContent('#oku-dugmesi')).includes('anahtar'),
+    `düğme eksiği söylüyor (${(await p.textContent('#oku-dugmesi')).trim()})`);
+  await p.click('#oku-dugmesi');
+  await p.waitForTimeout(200);
+  bak((await p.textContent('#durum')).includes('anahtar'), 'basınca anahtarın gerektiğini açıklıyor');
+  bak(await p.evaluate(() => document.getElementById('anahtar-kutusu').open),
+    'anahtar kutusu kendiliğinden açıldı');
+
   await p.fill('#api-anahtari', `sk-ant-api03-${'a'.repeat(40)}`);
   bak(await p.textContent('#anahtar-durum') === 'kayıtlı', 'anahtar biçimi kabul edildi');
+  bak((await p.textContent('#oku-dugmesi')).includes('fotoğraf'),
+    'anahtar girilince eksik olarak fotoğrafı gösteriyor');
 
   await p.setInputFiles('#dosya-girisi', gorselYolu);
   await p.waitForSelector('.foto img', { timeout: 15000 });
@@ -178,7 +192,7 @@ try {
   bak(/1\. sayfa/.test(altyazi), 'fotoğraf eklendi');
   bak(/×1568|1568×/.test(altyazi), `uzun kenar 1568'e indirildi (${altyazi})`);
 
-  bak(!(await p.isDisabled('#oku-dugmesi')), 'oku düğmesi açıldı');
+  bak((await p.textContent('#oku-dugmesi')).trim() === 'Ölçüleri oku', 'her şey tamam, düğme okumaya hazır');
   await p.click('#oku-dugmesi');
   await p.waitForSelector('#tablo-govde tr', { timeout: 20000 });
 

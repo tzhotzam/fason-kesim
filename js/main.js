@@ -212,10 +212,31 @@ function buyut(url) {
 
 function dugmeleriTazele() {
   const anahtar = ge.anahtar.value.trim();
-  ge.oku.disabled = D.gorseller.length === 0 || !anahtar;
+  const anahtarVar = anahtar.length > 0;
+  const fotoVar = D.gorseller.length > 0;
+
+  // Düğmeyi sönük ve ölü bırakmak, kullanıcıya "bozuk" gibi görünüyor ve
+  // neyin eksik olduğunu söylemiyor. Bunun yerine düğme hep basılabilir
+  // kalıyor; eksik neyse onu yazıyor ve basınca oraya götürüyor.
+  if (!anahtarVar) {
+    ge.oku.textContent = '🔑 Önce anahtar gerekli — dokun';
+    ge.oku.dataset.eksik = 'anahtar';
+  } else if (!fotoVar) {
+    ge.oku.textContent = '📷 Önce fotoğraf ekle — dokun';
+    ge.oku.dataset.eksik = 'foto';
+  } else {
+    ge.oku.textContent = 'Ölçüleri oku';
+    delete ge.oku.dataset.eksik;
+  }
+  ge.oku.disabled = false;
+  ge.oku.classList.toggle('eksik', Boolean(ge.oku.dataset.eksik));
+
+  // Anahtar girildiyse kutunun dikkat çekmesine gerek kalmaz.
+  ge.anahtarKutusu.classList.toggle('vurgu', !anahtarVar);
+
   const tamam = anahtarGecerliBicimde(anahtar);
-  ge.anahtarDurum.textContent = anahtar ? (tamam ? 'kayıtlı' : 'biçim şüpheli') : 'girilmedi';
-  ge.anahtarDurum.className = `rozet ${anahtar && tamam ? 'tamam' : 'eksik'}`;
+  ge.anahtarDurum.textContent = anahtarVar ? (tamam ? 'kayıtlı' : 'biçim şüpheli') : 'gerekli';
+  ge.anahtarDurum.className = `rozet ${anahtarVar && tamam ? 'tamam' : 'eksik'}`;
 }
 
 function bildir(sinif, metin, donsun = false) {
@@ -231,7 +252,20 @@ function bildir(sinif, metin, donsun = false) {
 
 async function okumayiBaslat() {
   const anahtar = ge.anahtar.value.trim();
-  if (!D.gorseller.length || !anahtar) return;
+
+  if (!anahtar) {
+    ge.anahtarKutusu.open = true;
+    ge.anahtarKutusu.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    ge.anahtar.focus({ preventScroll: true });
+    bildir('hata', 'Okumayı Claude yapıyor, bunun için bir anahtar gerekiyor. '
+      + 'Aşağıdaki kutuya yapıştır — bir kez girersin, bir daha sorulmaz.');
+    return;
+  }
+  if (!D.gorseller.length) {
+    document.getElementById('bolum-foto').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    bildir('hata', 'Önce kâğıdın fotoğrafını ekle.');
+    return;
+  }
 
   istekKontrol = new AbortController();
   ge.oku.disabled = true;

@@ -109,6 +109,12 @@ main {
 .dugme.buyuk { padding: 12px 20px; font-size: 16px; }
 .dugme.kucuk { padding: 6px 10px; min-height: 36px; font-size: 13px; }
 .dugme.silik { color: var(--muted); }
+/* Eksik bir şey var: düğme ölü değil, ne gerektiğini söylüyor ve oraya götürüyor. */
+.dugme.eksik {
+  background: var(--panel-2);
+  color: var(--accent);
+  border: 1px dashed var(--accent);
+}
 label.dugme { position: relative; }
 
 /* ------------------------------------------------------------ alanlar --- */
@@ -144,6 +150,11 @@ input:focus, select:focus, textarea:focus {
 .ipucu a { color: var(--accent-2); }
 
 .katlanir { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px; }
+/* Anahtar girilmeden hiçbir şey çalışmıyor; kutu göze çarpsın. */
+.katlanir.vurgu { border-color: var(--accent); background: rgba(245, 158, 11, 0.06); }
+.adimlar { margin: 0 0 10px; padding-left: 20px; font-size: 13px; color: var(--muted); }
+.adimlar li { margin: 5px 0; }
+.adimlar a { color: var(--accent-2); }
 .katlanir > summary { padding: 10px 12px; cursor: pointer; font-size: 14px; user-select: none; }
 .katlanir-ic { padding: 0 12px 12px; }
 
