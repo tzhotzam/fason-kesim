@@ -141,7 +141,14 @@ export function metinCoz(metin, ayar = {}) {
     if (!s.trim()) return;
     const r = satirCoz(s, ayar);
     if (r.ok) {
-      if (r.uyarilar.length) r.parca.kaynak = { satir: i + 1, guven: 'orta', notlar: r.uyarilar };
+      // Ham satır her zaman saklanır: tabloda "yazdığın hâli" sütununda
+      // durup karşılaştırmayı kolaylaştırıyor.
+      r.parca.kaynak = {
+        satir: i + 1,
+        metin: s.trim(),
+        guven: r.uyarilar.length ? 'orta' : '',
+        notlar: r.uyarilar,
+      };
       parcalar.push(r.parca);
     } else {
       hatalar.push({ satirNo: i + 1, metin: s, hata: r.hata });

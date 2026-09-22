@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#111418">
 <meta name="app-version" content="2026-09-21-a">
-<meta name="description" content="Müşterinin elle yazdığı kesim listesinin fotoğrafından ölçüleri okur, Excel'e aktarır.">
+<meta name="description" content="Müşteri ölçü kâğıdını makinenin istediği Excel biçimine çevirir. İstersen fotoğraftan otomatik okur.">
 <title>Fason Kesim — Ölçü Okuyucu</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="app.css">
@@ -43,14 +43,68 @@
 
 <header class="ustcubuk">
   <h1>📐 Fason Kesim — Ölçü Okuyucu</h1>
-  <p class="altyazi">Müşteri kâğıdının fotoğrafını çek, ölçüler Excel'e insin.</p>
+  <p class="altyazi">Ölçüleri gir, makinenin istediği Excel insin.</p>
 </header>
 
 <main>
 
-<!-- 1. FOTOĞRAF -->
-<section class="kart" id="bolum-foto">
-  <h2><span class="adim">1</span> Fotoğraf</h2>
+<!-- 1. ÖLÇÜLERİ GİR (ücretsiz, internet bile gerekmez) -->
+<section class="kart" id="bolum-giris">
+  <h2><span class="adim">1</span> Ölçüleri gir</h2>
+
+  <p class="ipucu">
+    Kâğıtta ne yazıyorsa aynen yaz — program bu yazımı biliyor.
+    Her satır bir parça. Alt alta yapıştırabilirsin.
+  </p>
+
+  <textarea id="toplu-giris" rows="8" spellcheck="false" placeholder="29x58=1
+25.4x10=2
+65.6x58=3 0/1
+78.2x58=14 2/0
+79.5x28.2=1  // Arbolit"></textarea>
+
+  <details class="katlanir">
+    <summary>Nasıl yazılır?</summary>
+    <div class="katlanir-ic">
+      <table class="yardim">
+        <tr><td><code>29x58=1</code></td><td>29×58, <b>1 adet</b> — eşittirden sonrası adet</td></tr>
+        <tr><td><code>65.6x58=3</code></td><td>3 adet</td></tr>
+        <tr><td><code>65.6x58=3 <b>0/1</b></code></td><td>ikinci ölçünün <b>1</b> kenarı bantlı</td></tr>
+        <tr><td><code>78.2x58=14 <b>2/0</b></code></td><td>birinci ölçünün <b>2</b> kenarı bantlı</td></tr>
+        <tr><td><code>72.7x22.7=1 <b>2/2</b></code></td><td>dört kenar da bantlı</td></tr>
+        <tr><td><code>60x58=1 // kapak</code></td><td><code>//</code> sonrası açıklama</td></tr>
+      </table>
+      <p class="ipucu">
+        Bant sayısı kâğıttaki çizgi sayısıdır: ölçünün altında tek çizgi
+        varsa <code>1</code>, çift çizgi varsa <code>2</code>, çizgi yoksa
+        <code>0</code>. Sırayla birinci ölçü / ikinci ölçü.
+      </p>
+    </div>
+  </details>
+
+  <div class="dugmeler">
+    <button type="button" class="dugme birincil buyuk" id="toplu-ekle">Listeye ekle</button>
+    <button type="button" class="dugme silik" id="toplu-temizle">Kutuyu boşalt</button>
+  </div>
+
+  <div id="giris-durum" class="durum" role="status" aria-live="polite"></div>
+</section>
+
+<!-- 2. FOTOĞRAFTAN OTOMATİK (isteğe bağlı) -->
+<section class="kart" id="bolum-otomatik">
+  <details id="otomatik-kutusu">
+    <summary class="bolum-basligi">
+      <span class="adim">2</span> Fotoğraftan otomatik oku
+      <span class="rozet">isteğe bağlı · ücretli</span>
+    </summary>
+    <div class="otomatik-ic">
+
+  <p class="ipucu">
+    Kâğıdın fotoğrafını çekersin, yapay zekâ ölçüleri kendi okur. Kolaylık
+    olsun diye; <b>zorunlu değil.</b> Kendi Anthropic hesabın ve sayfa başı
+    3–8 sent gerekir. Paran yoksa ya da uğraşmak istemiyorsan yukarıdan
+    elle gir — program tamamen aynı işi yapar.
+  </p>
 
   <div class="dugmeler">
     <label class="dugme birincil">
@@ -66,11 +120,6 @@
   </div>
 
   <div id="foto-listesi" class="foto-listesi"></div>
-</section>
-
-<!-- 2. ANAHTAR + OKU -->
-<section class="kart" id="bolum-oku">
-  <h2><span class="adim">2</span> Oku</h2>
 
   <details id="anahtar-kutusu" class="katlanir vurgu">
     <summary>🔑 API anahtarı <span id="anahtar-durum" class="rozet"></span></summary>
@@ -115,6 +164,9 @@
   </div>
 
   <div id="durum" class="durum" role="status" aria-live="polite"></div>
+
+    </div>
+  </details>
 </section>
 
 <!-- 3. KONTROL + EXCEL -->

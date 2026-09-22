@@ -169,6 +169,28 @@ try {
   await p.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
   bak(await p.title() === 'Fason Kesim — Ölçü Okuyucu', 'sayfa açıldı');
 
+  // --- ÜCRETSİZ YOL: elle yazma/yapıştırma. Programın omurgası bu;
+  // API anahtarı olmadan da tam çalışmalı.
+  await p.fill('#toplu-giris', ['29x58=1', '65.6x58=3 0/1', '78.2x58=14 2/0', 'zırva satır'].join('\n'));
+  await p.click('#toplu-ekle');
+  await p.waitForSelector('#tablo-govde tr', { timeout: 10000 });
+  const elleSatir = await p.locator('#tablo-govde tr').evaluateAll(
+    (trs) => trs.filter((t) => t.querySelector('td.sira')).length,
+  );
+  bak(elleSatir === 3, `anahtarsız 3 satır eklendi (${elleSatir})`);
+  bak((await p.inputValue('#toplu-giris')).trim() === 'zırva satır',
+    'anlaşılmayan satır kutuda kaldı, anlaşılanlar silindi');
+  bak((await p.textContent('#giris-durum')).includes('anlaşılmadı'), 'hatalı satır bildirildi');
+  const elleBant = await p.locator('#tablo-govde select.bant').evaluateAll((g) => g.map((x) => x.value));
+  bak(elleBant.slice(0, 6).join(',') === '0,0,0,1,2,0', `bant yazımı çözüldü (${elleBant.slice(0, 6)})`);
+  bak((await p.textContent('#ozet')).includes('18 parça'), 'adetler = ile doğru okundu');
+
+  // Elle eklenenleri temizleyip otomatik yola geç
+  await p.click('#tabloyu-temizle');
+  await p.waitForTimeout(200);
+  await p.fill('#toplu-giris', '');
+
+  await p.click('#otomatik-kutusu > summary');
   // Anahtar yokken düğme ölü durmamalı: ne gerektiğini söylemeli ve
   // basınca anahtar kutusuna götürmeli. (Usta "düğme koyu, deneyemedim"
   // dediği için eklendi.)

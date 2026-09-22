@@ -1,15 +1,24 @@
 # Fason Kesim — Ölçü Okuyucu
 
-Müşterinin elle doldurduğu kesim listesinin **fotoğrafını çek**, ölçüler
-tabloya insin, **Excel'e aktar**. Kâğıttaki 60 satırı tek tek tuşlamak yok.
+Müşteri ölçü kâğıdını, **kesim makinesinin istediği Excel biçimine** çevirir.
+
+İki yolu var:
+
+1. **Elle gir (ücretsiz)** — kâğıtta ne yazıyorsa aynen yazarsın:
+   `29x58=1`, `65.6x58=3 0/1`. Program bu yazımı bilir. İnternet bile
+   gerekmez. **Asıl yol budur.**
+2. **Fotoğraftan oku (isteğe bağlı, ücretli)** — kâğıdın fotoğrafını
+   çekersin, yapay zekâ ölçüleri kendi okur. Kolaylık olsun diye; kendi
+   Anthropic hesabın ve sayfa başı 3–8 sent gerekir.
+
+İkisi de aynı tabloya düşer, aynı Excel'i üretir. Otomatik okuma yalnızca
+yazma zahmetini azaltır — programın yapabildiklerini değiştirmez.
 
 Tamamı tarayıcıda çalışır: sunucu yok, kurulum yok. Telefonda açılır, ana
 ekrana eklenince uygulama gibi durur.
 
 > Program bir yardımcıdır, usta değil. **Kesmeden önce ölçüleri kâğıtla
-> karşılaştır.** El yazısı okumada hata payı her zaman vardır; program emin
-> olamadığı satırı sarı/kırmızı boyar ama her hatayı kendi yakalayacağını
-> garanti etmez.
+> karşılaştır.**
 
 ---
 

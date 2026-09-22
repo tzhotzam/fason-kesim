@@ -4,7 +4,7 @@ import { gorselHazirla } from './foto.js';
 import { fotograftanOku, anahtarGecerliBicimde, MODEL } from './ocr.js';
 import { xlsxOlustur, csvOlustur, indir } from './xlsx.js';
 import { bantSayilari, kimlik, yuvarla } from './olcu.js';
-import { satirCoz } from './parse.js';
+import { satirCoz, metinCoz } from './parse.js';
 import { apiAnahtari, sonIs, ayarlar, depoCalisiyor } from './depo.js';
 import {
   MAKINE_BASLIKLAR, MAKINE_GENISLIK, MAKINE_VARSAYILAN,
@@ -61,6 +61,10 @@ let istekKontrol = null;
 const $ = (id) => document.getElementById(id);
 
 const ge = {
+  topluGiris: $('toplu-giris'),
+  topluEkle: $('toplu-ekle'),
+  topluTemizle: $('toplu-temizle'),
+  girisDurum: $('giris-durum'),
   dosya: $('dosya-girisi'),
   fotoTemizle: $('foto-temizle'),
   birakma: $('birakma-alani'),
@@ -148,6 +152,63 @@ function satirDenetle(s) {
   if (enBuyuk > 10000) notlar.push('10 metreden büyük ölçü.');
 
   return { hata, notlar };
+}
+
+/* --------------------------------------------------------- toplu giriş --- */
+
+/**
+ * Kutuya yazılan/yapıştırılan satırları listeye ekler.
+ *
+ * Bu yol ücretsiz ve internetsiz çalışır; programın asıl omurgası budur.
+ * Fotoğraftan okuma yalnızca bu işi hızlandıran bir kolaylıktır.
+ */
+function topluEkle() {
+  const metin = ge.topluGiris.value;
+  if (!metin.trim()) {
+    girisBildir('hata', 'Kutu boş. Kâğıttaki satırları yaz ya da yapıştır.');
+    return;
+  }
+
+  const { parcalar, hatalar } = metinCoz(metin, { birim: D.birim });
+  if (!parcalar.length && hatalar.length) {
+    girisBildir('hata', `Hiçbir satır anlaşılmadı. Örnek: 29x58=1 — ${hatalar[0].hata}`);
+    return;
+  }
+
+  for (const parca of parcalar) {
+    const b = bantSayilari(parca.bant);
+    D.satirlar.push(yeniSatir({
+      en: parca.en,
+      boy: parca.boy,
+      adet: parca.adet,
+      bant1: b.bant1,
+      bant2: b.bant2,
+      damar: parca.damar,
+      aciklama: parca.aciklama,
+      okunan: parca.kaynak?.metin || '',
+      guven: parca.kaynak?.guven || '',
+    }));
+  }
+
+  // Anlaşılan satırlar kutudan silinir, anlaşılmayanlar kalır ki
+  // kullanıcı ne düzelteceğini görsün.
+  ge.topluGiris.value = hatalar.map((h) => h.metin).join('\n');
+
+  tabloCiz();
+  document.getElementById('bolum-tablo').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  if (hatalar.length) {
+    girisBildir('hata',
+      `${parcalar.length} satır eklendi. ${hatalar.length} satır anlaşılmadı, kutuda kaldı: `
+      + hatalar.slice(0, 3).map((h) => `"${h.metin.trim()}"`).join(', '));
+  } else {
+    girisBildir('tamam', `${parcalar.length} satır eklendi.`);
+  }
+}
+
+function girisBildir(sinif, metin) {
+  ge.girisDurum.className = `durum ${sinif}`;
+  ge.girisDurum.textContent = metin;
 }
 
 /* ------------------------------------------------------------- fotoğraf --- */
@@ -630,6 +691,17 @@ function geriYukle() {
 /* ------------------------------------------------------------- bağlantı --- */
 
 function baglantilar() {
+  ge.topluEkle.addEventListener('click', topluEkle);
+  ge.topluTemizle.addEventListener('click', () => {
+    ge.topluGiris.value = '';
+    girisBildir('', '');
+    ge.topluGiris.focus();
+  });
+  // Ctrl/Cmd+Enter ile de eklensin.
+  ge.topluGiris.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); topluEkle(); }
+  });
+
   ge.dosya.addEventListener('change', () => {
     dosyalariAl(ge.dosya.files);
     ge.dosya.value = '';   // aynı dosya tekrar seçilebilsin
@@ -759,8 +831,7 @@ function basla() {
   ge.yonSerbest.value = D.makine.yonSerbest;
 
   ge.anahtar.value = apiAnahtari.al();
-  if (ge.anahtar.value) ge.anahtarKutusu.open = false;
-  else ge.anahtarKutusu.open = true;
+  ge.anahtarKutusu.open = !ge.anahtar.value;
 
   if (!depoCalisiyor()) {
     bildir('hata', 'Tarayıcı depolaması kapalı — anahtar ve liste kaydedilmez (gizli pencere?).');

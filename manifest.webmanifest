@@ -1,7 +1,7 @@
 {
   "name": "Fason Kesim — Ölçü Okuyucu",
   "short_name": "Fason Kesim",
-  "description": "Müşterinin elle yazdığı kesim listesinin fotoğrafından ölçüleri okur, Excel'e aktarır.",
+  "description": "Müşteri ölçü kâğıdını makinenin istediği Excel biçimine çevirir.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

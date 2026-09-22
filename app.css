@@ -146,6 +146,42 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--accent-2);
 }
 
+textarea {
+  resize: vertical;
+  min-height: 150px;
+  font: 15px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.bolum-basligi {
+  padding: 4px 0;
+  font-size: 15px;
+  font-weight: 650;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.otomatik-ic { padding-top: 12px; }
+
+table.yardim { font-size: 13px; margin-bottom: 8px; }
+table.yardim td { padding: 4px 10px 4px 0; border: none; vertical-align: top; }
+table.yardim td:first-child { white-space: nowrap; }
+table.yardim code {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 12.5px;
+}
+.ipucu code {
+  background: var(--bg);
+  border-radius: 5px;
+  padding: 1px 5px;
+  font-size: 12.5px;
+}
+
 .ipucu { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
 .ipucu a { color: var(--accent-2); }
 
