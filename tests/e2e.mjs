@@ -33,15 +33,17 @@ const KOK = fileURLToPath(new URL('..', import.meta.url));
 const SAHTE_SONUC = {
   musteri: 'Öz Demir Mobilya',
   malzeme: 'Suntalam 18mm beyaz',
-  olcuBirimi: 'mm',
+  olcuBirimi: 'cm',
   parcalar: [
-    { satirNo: 1, en: 720, boy: 570, adet: 10, bantKod: '1U1K', aciklama: 'kapak', okunanMetin: '720x570  10ad  1U1K', guven: 'yuksek' },
-    { satirNo: 2, en: 2070, boy: 570, adet: 4, bantKod: '2U2K', aciklama: 'yan', okunanMetin: '2070 x 570 /4  2U2K', guven: 'orta' },
-    { satirNo: 3, en: 396, boy: 570, adet: 16, bantKod: '', aciklama: 'raf', okunanMetin: '396x570 16', guven: 'dusuk' },
+    // Kâğıttaki kural: altı tek çizgili ölçünün bir kenarı, çift çizgilinin
+    // iki kenarı bantlanır.
+    { satirNo: 1, olcu1: 65.6, olcu2: 58, adet: 3, altCizgi1: 0, altCizgi2: 1, grup: '', aciklama: 'kapak', okunanMetin: '65.6 x 58 = 3', guven: 'yuksek' },
+    { satirNo: 2, olcu1: 78.2, olcu2: 58, adet: 14, altCizgi1: 2, altCizgi2: 0, grup: '', aciklama: '', okunanMetin: '78.2 x 58 = 14', guven: 'orta' },
+    { satirNo: 3, olcu1: 79.5, olcu2: 28.2, adet: 1, altCizgi1: 0, altCizgi2: 0, grup: 'Arbolit', aciklama: '', okunanMetin: '79.5 x 28.2 = 1', guven: 'dusuk' },
     // Ölçüsü okunamamış satır: tabloda kırmızı görünmeli, Excel'e girmemeli.
-    { satirNo: 4, en: 0, boy: 400, adet: 2, bantKod: '', aciklama: 'okunamadı', okunanMetin: '???x400 2', guven: 'dusuk' },
+    { satirNo: 4, olcu1: 0, olcu2: 40, adet: 2, altCizgi1: 0, altCizgi2: 0, grup: '', aciklama: 'okunamadı', okunanMetin: '??? x 40 = 2', guven: 'dusuk' },
   ],
-  notlar: ['Sağ üstte "acele" yazıyor.', '5. satırın üstü çizilmiş, alınmadı.'],
+  notlar: ['Sağ sütunun başında "Arbolit" yazıyor.', '5. satırın üstü çizilmiş, alınmadı.'],
 };
 
 /** Kamera fotoğrafı yerine geçecek, 1568'den büyük bir PNG üretir. */
@@ -198,13 +200,18 @@ try {
   bak(await p.locator('tr.guven-orta').count() === 1, 'orta güvenli satır işaretlendi');
   bak(await p.locator('tr.hatali').count() === 1, 'ölçüsü eksik satır hatalı işaretlendi');
   bak(await p.locator('#notlar li').count() === 2, 'kâğıt notları gösterildi');
-  bak(await p.locator('#tablo-govde .okunan').first().inputValue() === '720x570  10ad  1U1K',
+  bak(await p.locator('#tablo-govde .okunan').first().inputValue() === '65.6 x 58 = 3',
     'kâğıtta yazan sütunu dolu');
+  bak(await p.inputValue('#birim') === 'cm', 'birim kâğıttan cm olarak alındı');
+  // Alt çizgi sayıları bant seçimlerine dönmüş mü?
+  const bantlar = await p.locator('#tablo-govde select.bant').evaluateAll((g) => g.map((x) => x.value));
+  bak(bantlar.slice(0, 4).join(',') === '0,1,2,0', `bant sayıları alt çizgiden geldi (${bantlar.slice(0, 4)})`);
+  bak(await p.locator('#tablo-govde .grup').nth(2).inputValue() === 'Arbolit', 'öbek başlığı satıra yazıldı');
   const ozet = (await p.textContent('#ozet')).replace(/\s+/g, ' ');
   bak(/4 satır/.test(ozet) && /1 eksik satır/.test(ozet), `özet doğru (${ozet})`);
   bak(/\$0\./.test(await p.textContent('#durum')), 'okuma maliyeti gösterildi');
 
-  await p.fill('#hizli-giris', '600x400 3 2U1K // test');
+  await p.fill('#hizli-giris', '72.7x22.7=1 2/2 // test');
   await p.press('#hizli-giris', 'Enter');
   await p.waitForFunction(
     () => [...document.querySelectorAll('#tablo-govde tr')].filter((t) => t.querySelector('td.sira')).length === 5,
@@ -224,10 +231,10 @@ try {
   const bayt = readFileSync(xlsxYolu);
   bak(bayt[0] === 0x50 && bayt[1] === 0x4b, 'inen dosya geçerli zip');
   const icerik = bayt.toString('utf8');
-  bak(icerik.includes('<v>720</v>'), 'ölçü Excel’e sayı olarak gitti');
+  bak(icerik.includes('<v>65.6</v>'), 'ölçü Excel’e sayı olarak gitti');
   bak(icerik.includes('Öz Demir Mobilya') === false, 'müşteri adı sayfaya değil dosya adına yazıldı');
   bak(!icerik.includes('okunamadı'), 'ölçüsü eksik satır Excel’e girmedi');
-  bak(icerik.includes('720x570  10ad  1U1K'), 'kâğıtta yazan sütunu Excel’e gitti');
+  bak(icerik.includes('65.6 x 58 = 3'), 'kâğıtta yazan sütunu Excel’e gitti');
 
   // Makine biçimi: şablonun sütun düzeniyle birebir inmeli.
   await p.click('#makine-kutusu > summary');
@@ -248,6 +255,7 @@ try {
   }
   bak(makineIcerik.includes('BEYAZ') && makineIcerik.includes('2100x2800'),
     'plaka bilgisi satırlara yazıldı');
+  bak(makineIcerik.includes('Arbolit'), 'öbek başlığı PLAKA RENK sütununa geçti');
 
   const [inenCsv] = await Promise.all([
     p.waitForEvent('download', { timeout: 20000 }),

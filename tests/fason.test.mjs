@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   bantKodCoz, bantKodYaz, uzunKisa, kesimOlcusu, bitmisOlcu, bantUzunlugu,
-  parcaDogrula, ciftGirisBul, isOzeti, yeniParca,
+  parcaDogrula, ciftGirisBul, isOzeti, yeniParca, bantSayilari, bantNesnesi,
   AYAR_VARSAYILAN, MALZEME_VARSAYILAN, FIYAT_VARSAYILAN,
 } from '../js/olcu.js';
 import { satirCoz, metinCoz } from '../js/parse.js';
@@ -228,6 +228,36 @@ test('ölçüsüz satır hata döndürür, çökmez', () => {
   }
 });
 
+test('gerçek müşteri kâğıdı biçimi: ÖLÇÜ x ÖLÇÜ = ADET', () => {
+  // Bu satırlar ustanın gönderdiği gerçek kâğıttan. "=N" adettir; daha önce
+  // hiç tanınmıyordu ve program sessizce 1 adet sayıyordu.
+  // Kâğıt santimetre; program mm'ye çeviriyor.
+  const beklenen = [
+    ['29x58=1', 290, 580, 1],
+    ['25.4x10=2', 254, 100, 2],
+    ['65.6x58=3', 656, 580, 3],
+    ['62x10=6', 620, 100, 6],
+    ['78.2x58=14', 782, 580, 14],
+    ['79.5x28.2=1', 795, 282, 1],
+    ['56.4 x 58 = 1', 564, 580, 1],
+  ];
+  for (const [metin, en, boy, adet] of beklenen) {
+    const r = satirCoz(metin, { birim: 'cm' });
+    assert.ok(r.ok, metin);
+    assert.equal(r.parca.en, en, metin);
+    assert.equal(r.parca.boy, boy, metin);
+    assert.equal(r.parca.adet, adet, `${metin} → adet`);
+    assert.deepEqual(r.uyarilar, [], metin);
+  }
+});
+
+test('bant sayısı yazımı: 1/0, 0/2, 2-2', () => {
+  const c = { birim: 'cm' };
+  assert.deepEqual(bantSayilari(satirCoz('65.6x58=3 1/0', c).parca.bant), { bant1: 1, bant2: 0 });
+  assert.deepEqual(bantSayilari(satirCoz('65.6x58=3 0/2', c).parca.bant), { bant1: 0, bant2: 2 });
+  assert.deepEqual(bantSayilari(satirCoz('65.6x58=3 2-2', c).parca.bant), { bant1: 2, bant2: 2 });
+});
+
 test('çok satırlı metin: geçerliler ayrılır, hatalılar bildirilir', () => {
   const { parcalar, hatalar } = metinCoz('600x400 2\nsaçma\n700x300 1U', {});
   assert.equal(parcalar.length, 2);
@@ -386,11 +416,15 @@ test('OCR şeması yapılandırılmış çıktı kurallarına uyar', () => {
 
 test('OCR şeması gereken alanları içerir', () => {
   const p = SEMA.properties.parcalar.items.properties;
-  for (const alan of ['satirNo', 'en', 'boy', 'adet', 'bantKod', 'aciklama', 'okunanMetin', 'guven']) {
+  for (const alan of ['satirNo', 'olcu1', 'olcu2', 'adet', 'altCizgi1', 'altCizgi2',
+    'grup', 'aciklama', 'okunanMetin', 'guven']) {
     assert.ok(p[alan], alan);
   }
   assert.deepEqual(p.guven.enum, ['yuksek', 'orta', 'dusuk']);
   assert.deepEqual(SEMA.properties.olcuBirimi.enum, ['mm', 'cm']);
+  // Alt çizgi sayısı kâğıttaki bant kuralı: 0, 1 ya da 2 olabilir.
+  assert.deepEqual(p.altCizgi1.enum, [0, 1, 2]);
+  assert.deepEqual(p.altCizgi2.enum, [0, 1, 2]);
 });
 
 test('model kimliği tarih eki taşımaz', () => {
@@ -400,7 +434,7 @@ test('model kimliği tarih eki taşımaz', () => {
 
 /* -------------------------------------------------------------- makine -- */
 
-const mSatir = (a = {}) => ({ en: 2070, boy: 570, adet: 4, bantKod: '2U1K', damar: 'serbest', ...a });
+const mSatir = (a = {}) => ({ en: 2070, boy: 570, adet: 4, bant1: 2, bant2: 1, grup: '', damar: 'serbest', ...a });
 
 test('makine başlıkları şablonla birebir aynı', () => {
   assert.deepEqual(MAKINE_BASLIKLAR, [
@@ -432,32 +466,56 @@ test('makine satırı ölçüleri BOY, EN sırasında yazar', () => {
   assert.equal(t[3], 2070);
 });
 
-test('2U1K: iki uzun kenar BAND BOY, bir kısa kenar BAND EN', () => {
-  // 2070x570 parçada uzun kenarlar 2070'lik olanlar; kâğıtta ilk sayı boy.
-  const r = makineSatiri(mSatir({ bantKod: '2U1K' }), { bantIsareti: 'X' });
-  assert.deepEqual(r.slice(8, 12), ['X', 'X', 'X', '']);
-});
-
-test('4 kenar bant dört sütunu da doldurur', () => {
-  const r = makineSatiri(mSatir({ bantKod: '4' }), { bantIsareti: 'X' });
-  assert.deepEqual(r.slice(8, 12), ['X', 'X', 'X', 'X']);
+test('tek çizgi bir sütun, çift çizgi iki sütun doldurur', () => {
+  // Kâğıttaki kural: ölçünün altında tek çizgi = o ölçünün bir kenarı,
+  // çift çizgi = iki kenarı bantlı.
+  const im = 'X';
+  assert.deepEqual(makineSatiri(mSatir({ bant1: 1, bant2: 0 }), { bantIsareti: im }).slice(8, 12),
+    ['X', '', '', '']);
+  assert.deepEqual(makineSatiri(mSatir({ bant1: 2, bant2: 0 }), { bantIsareti: im }).slice(8, 12),
+    ['X', 'X', '', '']);
+  assert.deepEqual(makineSatiri(mSatir({ bant1: 0, bant2: 1 }), { bantIsareti: im }).slice(8, 12),
+    ['', '', 'X', '']);
+  assert.deepEqual(makineSatiri(mSatir({ bant1: 0, bant2: 2 }), { bantIsareti: im }).slice(8, 12),
+    ['', '', 'X', 'X']);
+  assert.deepEqual(makineSatiri(mSatir({ bant1: 2, bant2: 2 }), { bantIsareti: im }).slice(8, 12),
+    ['X', 'X', 'X', 'X']);
 });
 
 test('bantsız satırda dört bant sütunu da boş', () => {
-  const r = makineSatiri(mSatir({ bantKod: '' }), {});
+  const r = makineSatiri(mSatir({ bant1: 0, bant2: 0 }), {});
   assert.deepEqual(r.slice(8, 12), ['', '', '', '']);
 });
 
 test('ölçü sırası değişince bant sütunları da yer değiştirir', () => {
-  const a = makineSatiri(mSatir({ bantKod: '2U1K' }), { olcuSirasi: 'boy-en', bantIsareti: 'X' });
-  const b = makineSatiri(mSatir({ bantKod: '2U1K' }), { olcuSirasi: 'en-boy', bantIsareti: 'X' });
+  const a = makineSatiri(mSatir({ bant1: 2, bant2: 1 }), { olcuSirasi: 'boy-en', bantIsareti: 'X' });
+  const b = makineSatiri(mSatir({ bant1: 2, bant2: 1 }), { olcuSirasi: 'en-boy', bantIsareti: 'X' });
   assert.deepEqual(a.slice(8, 12), ['X', 'X', 'X', '']);
   assert.deepEqual(b.slice(8, 12), ['X', '', 'X', 'X']);
 });
 
+test('bant sayısı 0-2 aralığına sıkıştırılır', () => {
+  assert.deepEqual(makineSatiri(mSatir({ bant1: 5, bant2: -1 }), { bantIsareti: 'X' }).slice(8, 12),
+    ['X', 'X', '', '']);
+});
+
 test('bant işareti ayarlanabilir', () => {
-  const r = makineSatiri(mSatir({ bantKod: '1U' }), { bantIsareti: '0,4' });
-  assert.ok(r.slice(8, 12).includes('0,4'));
+  const r = makineSatiri(mSatir({ bant1: 1, bant2: 0 }), { bantIsareti: '0,4' });
+  assert.equal(r[8], '0,4');
+});
+
+test('öbek başlığı PLAKA RENK yerine geçer', () => {
+  const r = makineSatiri(mSatir({ grup: 'Arbolit' }), { plakaRenk: 'BEYAZ' });
+  assert.equal(r[0], 'Arbolit');
+  const y = makineSatiri(mSatir({ grup: '' }), { plakaRenk: 'BEYAZ' });
+  assert.equal(y[0], 'BEYAZ');
+});
+
+test('bant sayıları ile kenar kümesi gidip gelir', () => {
+  for (const [a, b] of [[0, 0], [1, 0], [0, 1], [2, 1], [2, 2], [1, 2]]) {
+    const n = bantNesnesi(a, b);
+    assert.deepEqual(bantSayilari(n), { bant1: a, bant2: b }, `${a}/${b}`);
+  }
 });
 
 test('YÖN sütunu damara göre dolar', () => {
@@ -477,9 +535,14 @@ test('plaka bilgisi her satıra yazılır', () => {
 });
 
 test('makine uyarıları eksikleri yakalar', () => {
-  const u = makineUyarilari([mSatir({ bantKod: '' })], { ...MAKINE_VARSAYILAN });
-  assert.ok(u.some((x) => /PLAKA RENK/.test(x)));
-  assert.ok(u.some((x) => /bant kodu yok/.test(x)));
+  const u = makineUyarilari([mSatir({ bant1: 0, bant2: 0 })], { ...MAKINE_VARSAYILAN });
+  assert.ok(u.some((x) => /PLAKA RENK/.test(x)), u.join(' | '));
+  assert.ok(u.some((x) => /bantsız/.test(x)), u.join(' | '));
+});
+
+test('öbek başlığı olan satır PLAKA RENK uyarısı vermez', () => {
+  const u = makineUyarilari([mSatir({ grup: 'Arbolit' })], { ...MAKINE_VARSAYILAN });
+  assert.ok(!u.some((x) => /PLAKA RENK/.test(x)), u.join(' | '));
 });
 
 test('makine biçimi geçerli xlsx üretir', async () => {

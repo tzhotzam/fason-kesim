@@ -3,7 +3,7 @@
 import { gorselHazirla } from './foto.js';
 import { fotograftanOku, anahtarGecerliBicimde, MODEL } from './ocr.js';
 import { xlsxOlustur, csvOlustur, indir } from './xlsx.js';
-import { bantKodCoz, bantKodYaz, kimlik, yuvarla } from './olcu.js';
+import { bantSayilari, kimlik, yuvarla } from './olcu.js';
 import { satirCoz } from './parse.js';
 import { apiAnahtari, sonIs, ayarlar, depoCalisiyor } from './depo.js';
 import {
@@ -81,6 +81,8 @@ const ge = {
   olcuSirasi: $('olcu-sirasi'),
   basOlcu1: $('bas-olcu1'),
   basOlcu2: $('bas-olcu2'),
+  basBant1: $('bas-bant1'),
+  basBant2: $('bas-bant2'),
   makineKutusu: $('makine-kutusu'),
   plakaRenk: $('plaka-renk'),
   plakaOlcu: $('plaka-olcu'),
@@ -107,14 +109,23 @@ const ge = {
 function yeniSatir(alan = {}) {
   return {
     id: alan.id ?? kimlik(),
-    en: alan.en ?? 0,
-    boy: alan.boy ?? 0,
+    en: alan.en ?? 0,        // kâğıttaki birinci ölçü
+    boy: alan.boy ?? 0,      // kâğıttaki ikinci ölçü
     adet: alan.adet ?? 1,
-    bantKod: alan.bantKod ?? '',
+    // Kâğıtta bant, ölçünün altı çizilerek yazılıyor: tek çizgi o ölçünün
+    // bir kenarı, çift çizgi iki kenarı. Sayı olarak tutuyoruz.
+    bant1: sinirlaBant(alan.bant1),
+    bant2: sinirlaBant(alan.bant2),
+    grup: alan.grup ?? '',   // öbek başlığı → PLAKA RENK
+    damar: alan.damar ?? 'serbest',
     aciklama: alan.aciklama ?? '',
     okunan: alan.okunan ?? '',
     guven: alan.guven ?? '',
   };
+}
+
+function sinirlaBant(n) {
+  return Math.max(0, Math.min(2, Math.round(Number(n) || 0)));
 }
 
 /** Satırı gözden geçirir: {hata: bool, notlar: string[]} */
@@ -125,10 +136,6 @@ function satirDenetle(s) {
   if (!(s.en > 0) || !(s.boy > 0)) { notlar.push('Ölçü eksik.'); hata = true; }
   if (!Number.isInteger(s.adet) || s.adet <= 0) { notlar.push('Adet geçersiz.'); hata = true; }
 
-  if (s.bantKod) {
-    const c = bantKodCoz(s.bantKod, s.en, s.boy);
-    if (c.uyari) notlar.push(c.uyari);
-  }
 
   // Ölçü büyüklüğü birime uyuyor mu? En sık hata bu.
   const enBuyuk = Math.max(s.en, s.boy);
@@ -261,10 +268,12 @@ function sonucuYerlestir(sonuc) {
   okunan.sort((a, b) => (a.satirNo || 0) - (b.satirNo || 0));
 
   D.satirlar = okunan.map((p) => yeniSatir({
-    en: sayiya(p.en),
-    boy: sayiya(p.boy),
+    en: sayiya(p.olcu1),
+    boy: sayiya(p.olcu2),
     adet: Math.max(1, Math.round(sayiya(p.adet)) || 1),
-    bantKod: (p.bantKod || '').trim(),
+    bant1: p.altCizgi1,
+    bant2: p.altCizgi2,
+    grup: (p.grup || '').trim(),
     aciklama: (p.aciklama || '').trim(),
     okunan: (p.okunanMetin || '').trim(),
     guven: p.guven || '',
@@ -288,6 +297,8 @@ function tabloCiz() {
   const [bir, iki] = olcuAdlari();
   ge.basOlcu1.textContent = bir;
   ge.basOlcu2.textContent = iki;
+  ge.basBant1.textContent = `Bant ${bir}`;
+  ge.basBant2.textContent = `Bant ${iki}`;
   ge.govde.textContent = '';
 
   D.satirlar.forEach((s, i) => {
@@ -304,7 +315,9 @@ function tabloCiz() {
       sayiHucresi(s, 'en'),
       sayiHucresi(s, 'boy'),
       sayiHucresi(s, 'adet', 1),
-      metinHucresi(s, 'bantKod', 'bant', '1U1K'),
+      bantHucresi(s, 'bant1'),
+      bantHucresi(s, 'bant2'),
+      metinHucresi(s, 'grup', 'grup', ''),
       metinHucresi(s, 'aciklama', 'aciklama', ''),
       metinHucresi(s, 'okunan', 'okunan', ''),
       silHucresi(s),
@@ -314,7 +327,7 @@ function tabloCiz() {
     if (notlar.length) {
       const notTr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 8;
+      td.colSpan = 10;
       td.className = 'satir-notu';
       td.textContent = `↑ ${notlar.join(' ')}`;
       notTr.append(td);
@@ -348,6 +361,29 @@ function sayiHucresi(satir, alan, enAz = 0) {
     // Elle düzeltilen satır artık "şüpheli" değildir.
     satir.guven = '';
     gecikmeliCiz();
+  });
+  td.append(g);
+  return td;
+}
+
+/** Bantlı kenar sayısı: 0, 1 ya da 2. Kâğıttaki çizgi sayısının karşılığı. */
+function bantHucresi(satir, alan) {
+  const td = document.createElement('td');
+  const g = document.createElement('select');
+  g.className = 'bant';
+  g.setAttribute('aria-label', alan);
+  for (const [deger, etiket] of [[0, '—'], [1, '1 kenar'], [2, '2 kenar']]) {
+    const o = document.createElement('option');
+    o.value = String(deger);
+    o.textContent = etiket;
+    g.append(o);
+  }
+  g.value = String(satir[alan] || 0);
+  if (satir[alan]) td.classList.add('bantli');
+  g.addEventListener('change', () => {
+    satir[alan] = Number(g.value);
+    satir.guven = '';
+    tabloCiz();
   });
   td.append(g);
   return td;
@@ -441,7 +477,8 @@ function olcuAdlari() {
 function basliklar() {
   const b = D.birim;
   const [bir, iki] = olcuAdlari();
-  return ['Sıra', `${bir} (${b})`, `${iki} (${b})`, 'Adet', 'Bant', 'Açıklama', 'Kâğıtta yazan', 'Güven'];
+  return ['Sıra', `${bir} (${b})`, `${iki} (${b})`, 'Adet',
+    `Bant ${bir}`, `Bant ${iki}`, 'Plaka / grup', 'Açıklama', 'Kâğıtta yazan', 'Güven'];
 }
 
 const GUVEN_ADI = { yuksek: 'yüksek', orta: 'orta', dusuk: 'DÜŞÜK — kontrol et' };
@@ -454,7 +491,9 @@ function ciktiSatirlari() {
       s.en,
       s.boy,
       s.adet,
-      s.bantKod ? bantKodYaz(bantKodCoz(s.bantKod, s.en, s.boy).bant, s.en, s.boy) : '',
+      s.bant1 || '',
+      s.bant2 || '',
+      s.grup,
       s.aciklama,
       s.okunan,
       GUVEN_ADI[s.guven] || '',
@@ -477,7 +516,7 @@ function excelIndir() {
     sayfaAdi: 'Kesim Listesi',
     basliklar: basliklar(),
     satirlar,
-    genislikler: [6, 11, 11, 7, 11, 24, 26, 18],
+    genislikler: [6, 11, 11, 7, 10, 10, 14, 22, 26, 18],
   });
   indir(blob, dosyaAdi('xlsx'));
   bildir('tamam', `${satirlar.length} satır Excel'e aktarıldı.`);
@@ -627,12 +666,14 @@ function baglantilar() {
     // duruyor, arada dönüştürmek karışıklık yaratır.
     const r = satirCoz(ham);
     if (!r.ok) { bildir('hata', r.hata); return; }
-    const kod = bantKodYaz(r.parca.bant, r.parca.en, r.parca.boy);
+    const b = bantSayilari(r.parca.bant);
     D.satirlar.push(yeniSatir({
       en: r.parca.en,
       boy: r.parca.boy,
       adet: r.parca.adet,
-      bantKod: kod === 'yok' ? '' : kod,
+      bant1: b.bant1,
+      bant2: b.bant2,
+      damar: r.parca.damar,
       aciklama: r.parca.aciklama,
       okunan: ham,
     }));

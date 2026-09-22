@@ -282,7 +282,10 @@ td input, td select {
 }
 td input[type="number"] { width: 82px; }
 td .aciklama { min-width: 130px; }
-td .bant { width: 86px; }
+td select.bant { width: 92px; padding: 6px 4px; }
+/* Bantlı kenar göze çarpsın: bant yanlış giderse parça çöpe gider. */
+td.bantli select.bant { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+td .grup { min-width: 100px; }
 td .okunan {
   min-width: 130px;
   color: var(--muted);

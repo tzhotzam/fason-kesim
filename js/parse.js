@@ -3,6 +3,8 @@
 // Amaç: kâğıda bakarken klavyeden gözünü kaldırmadan yazabilmek.
 // Kabul edilen biçimler bilerek gevşek tutuldu; müşteri kâğıdı da gevşek.
 //
+//   29x58=1                 → 29×58, 1 adet   (müşteri kâğıtlarında en yaygın)
+//   65.6x58=3 0/1           → 3 adet, ikinci ölçünün bir kenarı bantlı
 //   600x400 2 1U1K          → 600×400, 2 adet, 1 uzun 1 kısa kenar bantlı
 //   600*400 x2 4            → 4 kenar bant
 //   600 400 2               → bantsız
@@ -39,7 +41,17 @@ export function satirCoz(ham, ayar = {}) {
   // Satır başındaki sıra numarasını ("3)" , "3." , "3-") at.
   satir = satir.replace(/^\s*\d{1,3}\s*[).:-]\s+/, '');
 
-  const T = satir.toLocaleUpperCase('tr');
+  let T = satir.toLocaleUpperCase('tr');
+
+  // "29x58=1" — eşittirden sonrası adet. Müşteri kâğıtlarında en yaygın
+  // yazım bu ve daha önce hiç tanınmıyordu: program sessizce "1 adet"
+  // sayıyordu, yani 14 adetlik satır 1 adet olarak geçiyordu.
+  let esittenAdet = null;
+  const esit = T.match(new RegExp(`=\\s*(${SAYI})`));
+  if (esit) {
+    esittenAdet = sayi(esit[1]);
+    T = (T.slice(0, esit.index) + ' ' + T.slice(esit.index + esit[0].length)).trim();
+  }
 
   // 1) Ölçü: EN x BOY
   let m = T.match(new RegExp(`(${SAYI})\\s*[X*\\/×]\\s*(${SAYI})`));
@@ -82,6 +94,10 @@ export function satirCoz(ham, ayar = {}) {
     a = jeton.match(new RegExp(`^\\/(${SAYI})$`));
     if (a) { adet = sayi(a[1]); continue; }
 
+    // "1/0", "2-1" — birinci/ikinci ölçüden kaçar kenar bantlı
+    a = jeton.match(/^([0-2])[/-]([0-2])$/);
+    if (a && bantKod === null) { bantKod = `[${a[1]}|${a[2]}]`; continue; }
+
     if (jeton === 'D' || jeton === 'DAMAR' || jeton === 'DAMARLI') { damar = 'boy'; continue; }
     if (jeton === 'S' || jeton === 'SERBEST') { damar = 'serbest'; continue; }
     if (jeton === 'AD' || jeton === 'ADET' || jeton === 'TANE') continue;
@@ -100,6 +116,7 @@ export function satirCoz(ham, ayar = {}) {
     uyarilar.push(`Anlaşılmayan bölüm atlandı: "${jeton}"`);
   }
 
+  if (adet === null && esittenAdet !== null) adet = esittenAdet;
   if (adet === null) adet = 1;
   if (!Number.isInteger(adet) || adet <= 0) {
     return { ok: false, hata: `Adet anlaşılmadı: ${adet}`, uyarilar };

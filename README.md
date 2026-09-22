@@ -26,24 +26,53 @@ ekrana eklenince uygulama gibi durur.
 
 Yazdığın liste tarayıcıda saklanır; sayfayı yanlışlıkla kapatırsan geri gelir.
 
+### Kâğıt nasıl okunuyor
+
+Program, müşteri kâğıtlarındaki yaygın yazımı bilir:
+
+```
+29 x 58 = 1        → 29×58 cm, 1 adet
+65.6 x 58 = 3      → 3 adet
+78.2 x 58 = 14     → 14 adet
+```
+
+**Eşittirden sonraki sayı adettir**, ölçü değil.
+
+**Alt çizgi = kenar bandı.** Müşteri bandı, ölçünün altını çizerek belirtir:
+
+| Kâğıtta | Anlamı |
+|---|---|
+| ölçünün altı boş | o ölçünün hiçbir kenarı bantlanmaz |
+| ölçünün altında **tek** çizgi | o ölçünün **bir** kenarı bantlanır |
+| ölçünün altında **çift** çizgi | o ölçünün **iki** kenarı da bantlanır |
+
+İki ölçü ayrı ayrı değerlendirilir; biri çizili öteki çizgisiz olabilir. Bu,
+makine şablonundaki ikişer `BAND BOY` / `BAND EN` sütununa birebir oturur.
+
+**Birim:** 29, 58, 79.5 gibi iki-üç haneli ve ondalıklı sayılar santimetre
+sayılır; 720, 2100 gibi sayılar milimetre. Program hangisi olduğunu söyler,
+yanılırsa tablodan değiştirirsin.
+
+**Sayfada iki sütun varsa** önce sol, sonra sağ okunur. Bir öbeğin üstünde
+malzeme adı yazıyorsa (ör. "Arbolit") o ad, altındaki satırların
+**Plaka / grup** sütununa geçer ve makine dosyasında `PLAKA RENK` olur.
+
 ### Elle satır ekleme
 
 Tablonun altındaki kutuya kısa yazım:
 
 ```
-720x570 10 1U1K      → 720×570, 10 adet, 1 uzun 1 kısa kenar bantlı
-600*400 x2 4K        → 4 kenar bant
-1200x600/3 2U2K d    → 3 adet, dört kenar, damar boy yönünde (çevrilemez)
-600,5 x 400          → ondalık virgülle de olur
-3) 720x450 6 // raf  → baştaki sıra no atılır, // sonrası açıklama
+65.6x58=3            → 65.6×58, 3 adet, bantsız
+65.6x58=3 0/1        → ikinci ölçünün 1 kenarı bantlı
+78.2x58=14 2/0       → birinci ölçünün 2 kenarı bantlı
+72.7x22.7=1 2/2      → dört kenar da bantlı
+60x58=1 // kapak     → // sonrası açıklama
 ```
 
-Ayraç olarak `x`, `*`, `/`, `×` ya da boşluk çalışır. Adet `x2`, `/3`,
-`2 ad` ya da çıplak sayı olabilir.
+Bant yazımı `birinci/ikinci`: kâğıttaki çizgi sayısının karşılığı.
+Ayraç olarak `x`, `*`, `/`, `×` ya da boşluk çalışır; adet `=3`, `x3`, `/3`
+ya da çıplak sayı olabilir. Eski `1U1K` yazımı da kabul edilir.
 
-**Bant kodu:** `U` = uzun kenar, `K` = kısa kenar. `1U1K`, `2U1K`, `1U`,
-`2K` … Dört kenar için `4` ya da `4K`. Hangi kenar olduğunu tam yazmak
-istersen `[üst alt sol sağ]` biçiminde: `[1010]`.
 
 ---
 
@@ -87,8 +116,8 @@ kat çözünürlükte gider, okuma belirgin şekilde düzelir.
   karşılaştırması kolay olsun diye.
 - **Birim tutarsızlığı** — mm seçiliyken 45 gibi bir ölçü, cm seçiliyken
   2100 gibi bir ölçü uyarı alır. Bu en sık yapılan hata.
-- **Bant kodu denetimi** — anlaşılmayan kod ve "3 uzun kenar" gibi
-  imkânsız kodlar uyarı verir.
+- **Bantsız satır uyarısı** — makine dosyasını indirirken hiç bandı olmayan
+  satır varsa söyler; bant yanlış giderse parça çöpe gider.
 - **Eksik satır Excel'e girmez** — ölçüsü ya da adedi eksik satırlar dışarıda
   kalır ve özet satırında kaç tane olduğu yazar.
 

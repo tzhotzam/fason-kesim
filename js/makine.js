@@ -17,7 +17,6 @@
 //    Hücreye ne yazılacağı (X mi, kalınlık mı, bant kodu mu) makineden
 //    makineye değişir; ayardan verilir.
 
-import { bantKodCoz } from './olcu.js';
 
 export const MAKINE_BASLIKLAR = [
   'PLAKA RENK', 'PLAKA ÖLÇÜ', 'ÖLÇÜ BOY', 'ÖLÇÜ EN', 'ÖLÇÜ ADET',
@@ -34,8 +33,8 @@ export const MAKINE_VARSAYILAN = {
   olcuSirasi: 'boy-en',
   // Bantlı kenar hücresine ne yazılsın?
   bantIsareti: 'X',
-  // YÖN sütunu
-  yonDamarli: 'DAMARLI',
+  // YÖN sütunu — ustanın örnek dosyasında boştu, varsayılanı boş bıraktık.
+  yonDamarli: '',
   yonSerbest: '',
 };
 
@@ -48,21 +47,23 @@ export function boyEn(satir, olcuSirasi) {
 }
 
 /**
- * Bant kodunu makinenin dört sütununa dağıtır.
+ * Bantlı kenar sayılarını makinenin dört sütununa dağıtır.
  *
- * olcu.js'te ust/alt kenarların uzunluğu satir.en (kâğıttaki ilk sayı),
- * sol/sag kenarların uzunluğu satir.boy kadardır. Hangi çiftin "BAND BOY"
- * olduğu bu yüzden ölçü sırasına bağlı.
+ * Kâğıtta bant, ölçünün altı çizilerek belirtiliyor: tek çizgi o ölçünün bir
+ * kenarı, çift çizgi iki kenarı. satir.bant1 birinci ölçüye, satir.bant2
+ * ikinci ölçüye ait sayıdır. Hangisinin BAND BOY hangisinin BAND EN olduğu
+ * ölçü sırasına bağlı, ikisi birlikte yer değiştirir.
  *
- * @returns {{boy: [boolean, boolean], en: [boolean, boolean]}}
+ * @returns {{boy: number, en: number}} her biri 0, 1 ya da 2
  */
 export function makineKenarlari(satir, olcuSirasi) {
-  const { bant } = bantKodCoz(satir.bantKod, satir.en, satir.boy);
-  const yatay = [bant.ust, bant.alt];   // uzunlukları satir.en
-  const dikey = [bant.sol, bant.sag];   // uzunlukları satir.boy
-  return olcuSirasi === 'en-boy'
-    ? { boy: dikey, en: yatay }
-    : { boy: yatay, en: dikey };
+  const b1 = sinirla(satir.bant1);
+  const b2 = sinirla(satir.bant2);
+  return olcuSirasi === 'en-boy' ? { boy: b2, en: b1 } : { boy: b1, en: b2 };
+}
+
+function sinirla(n) {
+  return Math.max(0, Math.min(2, Math.round(Number(n) || 0)));
 }
 
 /** Tek satırı makine sütunlarına çevirir. */
@@ -70,10 +71,13 @@ export function makineSatiri(satir, ayar) {
   const o = { ...MAKINE_VARSAYILAN, ...ayar };
   const { boy, en } = boyEn(satir, o.olcuSirasi);
   const kenar = makineKenarlari(satir, o.olcuSirasi);
-  const im = (acik) => (acik ? o.bantIsareti : '');
+  // n kenar bantlıysa o ölçünün iki sütunundan n tanesi işaretlenir.
+  const im = (n, sira) => (sira < n ? o.bantIsareti : '');
 
   return [
-    o.plakaRenk,
+    // Satırın kendi öbek başlığı varsa (ör. "Arbolit") plaka rengi odur;
+    // yoksa ayardaki genel renk kullanılır.
+    String(satir.grup || '').trim() || o.plakaRenk,
     o.plakaOlcu,
     boy,
     en,
@@ -81,10 +85,10 @@ export function makineSatiri(satir, ayar) {
     '',                                   // F — şablonda ayraç
     '',                                   // G — şablonda ayraç
     satir.damar === 'boy' ? o.yonDamarli : o.yonSerbest,
-    im(kenar.boy[0]),
-    im(kenar.boy[1]),
-    im(kenar.en[0]),
-    im(kenar.en[1]),
+    im(kenar.boy, 0),
+    im(kenar.boy, 1),
+    im(kenar.en, 0),
+    im(kenar.en, 1),
   ];
 }
 
@@ -97,17 +101,19 @@ export function makineSatirlari(satirlar, ayar, gecerliMi = () => true) {
 export function makineUyarilari(satirlar, ayar) {
   const o = { ...MAKINE_VARSAYILAN, ...ayar };
   const u = [];
-  if (!o.plakaRenk) u.push('PLAKA RENK boş — makine plakayı seçemeyebilir.');
+  const grupsuz = satirlar.filter((s) => !String(s.grup || '').trim());
+  if (!o.plakaRenk && grupsuz.length) {
+    u.push(`${grupsuz.length} satırda PLAKA RENK boş — makine plakayı seçemeyebilir.`);
+  }
   if (!o.plakaOlcu) u.push('PLAKA ÖLÇÜ boş.');
   if (!o.bantIsareti) u.push('Bant işareti boş — bantlı kenarlar boş gidecek.');
 
-  // Bant kodu olmayan satırlar sessizce bantsız gider; bu pahalı bir hatadır.
-  const kodsuz = satirlar.filter((s) => !String(s.bantKod || '').trim()).length;
-  if (kodsuz) u.push(`${kodsuz} satırda bant kodu yok — bantsız olarak gidecek.`);
+  // Hiç bandı olmayan satırlar sessizce bantsız gider; pahalı bir hatadır.
+  const bantsiz = satirlar.filter((s) => !sinirla(s.bant1) && !sinirla(s.bant2)).length;
+  if (bantsiz) u.push(`${bantsiz} satır bantsız gidecek — kâğıtta altı çizili ölçü var mı bak.`);
 
-  // Bant kodu çözülemeyen satırlar
-  const bozuk = satirlar.filter((s) => s.bantKod && bantKodCoz(s.bantKod, s.en, s.boy).uyari).length;
-  if (bozuk) u.push(`${bozuk} satırın bant kodu anlaşılmadı — o kenarlar boş gidecek.`);
+  const supheli = satirlar.filter((s) => s.guven === 'dusuk' || s.guven === 'orta').length;
+  if (supheli) u.push(`${supheli} satır şüpheli okundu.`);
 
   return u;
 }

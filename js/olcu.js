@@ -87,6 +87,13 @@ export function bantKodCoz(kod, en, boy) {
   const t = String(kod).trim().toLocaleUpperCase('tr');
   if (!t || t === '0' || t === '-' || t === 'YOK' || t === 'X') return { bant, uyari: null };
 
+  // Sayı biçimi: [birinci|ikinci] — her ölçüden kaç kenar bantlı.
+  // Kâğıttaki altı çizili ölçü kuralı buraya düşüyor.
+  const sayilar = t.match(/^\[([0-2])\|([0-2])\]$/);
+  if (sayilar) {
+    return { bant: bantNesnesi(Number(sayilar[1]), Number(sayilar[2])), uyari: null };
+  }
+
   // Açık biçim: [üst alt sol sağ] — "[1011]" ya da "1011"
   const acik = t.match(/^\[?([01])([01])([01])([01])\]?$/);
   if (acik) {
@@ -116,6 +123,36 @@ export function bantKodCoz(kod, en, boy) {
     ? 'Kare parçada uzun/kısa ayrımı yok — hangi kenar olduğunu işaretle.'
     : null;
   return { bant, uyari };
+}
+
+
+/**
+ * Kenar kümesini "kaç kenar" sayılarına çevirir.
+ *
+ * Müşteri kâğıdında bant, ölçünün altını çizerek belirtiliyor: tek çizgi o
+ * ölçünün bir kenarı, çift çizgi iki kenarı demek. Yani bizim için önemli
+ * olan hangi kenar değil, her ölçüden kaç kenar bantlandığı.
+ *
+ * bant1 = birinci ölçü (en) uzunluğundaki kenarlardan kaçı bantlı
+ * bant2 = ikinci ölçü (boy) uzunluğundaki kenarlardan kaçı bantlı
+ */
+export function bantSayilari(bant) {
+  return {
+    bant1: (bant.ust ? 1 : 0) + (bant.alt ? 1 : 0),
+    bant2: (bant.sol ? 1 : 0) + (bant.sag ? 1 : 0),
+  };
+}
+
+/** bantSayilari'nın tersi. */
+export function bantNesnesi(bant1 = 0, bant2 = 0) {
+  const n1 = Math.max(0, Math.min(2, Math.round(bant1) || 0));
+  const n2 = Math.max(0, Math.min(2, Math.round(bant2) || 0));
+  return {
+    ust: n1 >= 1,
+    alt: n1 >= 2,
+    sol: n2 >= 1,
+    sag: n2 >= 2,
+  };
 }
 
 /** Kenar kümesini okunur koda çevirir: "1U1K", "4 kenar", "yok"… */
