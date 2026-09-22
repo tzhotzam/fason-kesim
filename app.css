@@ -56,6 +56,10 @@ main {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: var(--pad);
+  /* Izgara çocuğunun varsayılan min-width: auto değeri, içindeki geniş
+     tablonun min-content genişliğine kilitlenir ve kart daralamaz; telefonda
+     bütün sayfa yana kayar. Sıfırlayınca tablo kendi kutusunda kayıyor. */
+  min-width: 0;
 }
 
 .kart h2 {
@@ -245,7 +249,12 @@ input:focus, select:focus, textarea:focus {
 
 .ust-bilgi { margin-bottom: 12px; }
 
-.tablo-sarmal { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tablo-sarmal {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  min-width: 0;
+}
 
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 

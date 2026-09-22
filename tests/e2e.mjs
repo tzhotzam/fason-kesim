@@ -1,0 +1,256 @@
+// Uygulamayı gerçek bir tarayıcıda uçtan uca sürer:
+//   node tests/e2e.mjs
+//
+// Anthropic'e giden istek yakalanıp sahte yanıtla karşılanır — gerçek
+// anahtar ve gerçek para harcanmaz, ama ocr.js'in fetch yolu, yanıtı
+// çözmesi, tablonun dolması ve Excel'in üretilmesi gerçekten çalışır.
+//
+// Playwright kurulu değilse test atlanır (uygulamanın kendisinin hiçbir
+// bağımlılığı yok; bu yalnızca geliştirme aracı):
+//   npm i -D playwright && npx playwright install chromium
+
+import { createServer } from 'node:http';
+import { readFile, writeFile, mkdtemp } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, extname, normalize } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { deflateSync, crc32 } from 'node:zlib';
+
+let chromium;
+try {
+  ({ chromium } = await import('playwright'));
+} catch {
+  console.log('Playwright kurulu değil — tarayıcı testi atlandı.');
+  console.log('Kurmak için:  npm i -D playwright && npx playwright install chromium');
+  process.exit(0);
+}
+
+const KOK = fileURLToPath(new URL('..', import.meta.url));
+
+/* ------------------------------------------------------- sahte veriler -- */
+
+const SAHTE_SONUC = {
+  musteri: 'Öz Demir Mobilya',
+  malzeme: 'Suntalam 18mm beyaz',
+  olcuBirimi: 'mm',
+  parcalar: [
+    { satirNo: 1, en: 720, boy: 570, adet: 10, bantKod: '1U1K', aciklama: 'kapak', okunanMetin: '720x570  10ad  1U1K', guven: 'yuksek' },
+    { satirNo: 2, en: 2070, boy: 570, adet: 4, bantKod: '2U2K', aciklama: 'yan', okunanMetin: '2070 x 570 /4  2U2K', guven: 'orta' },
+    { satirNo: 3, en: 396, boy: 570, adet: 16, bantKod: '', aciklama: 'raf', okunanMetin: '396x570 16', guven: 'dusuk' },
+    // Ölçüsü okunamamış satır: tabloda kırmızı görünmeli, Excel'e girmemeli.
+    { satirNo: 4, en: 0, boy: 400, adet: 2, bantKod: '', aciklama: 'okunamadı', okunanMetin: '???x400 2', guven: 'dusuk' },
+  ],
+  notlar: ['Sağ üstte "acele" yazıyor.', '5. satırın üstü çizilmiş, alınmadı.'],
+};
+
+/** Kamera fotoğrafı yerine geçecek, 1568'den büyük bir PNG üretir. */
+function testGorseli(en = 2400, boy = 3200) {
+  const satirlar = [];
+  for (let y = 0; y < boy; y += 1) {
+    const v = (y % 120) > 4 ? 245 : 120;         // kâğıt gibi yatay çizgiler
+    const satir = Buffer.alloc(en * 3 + 1);
+    for (let x = 0; x < en; x += 1) {
+      satir[1 + x * 3] = v;
+      satir[2 + x * 3] = v;
+      satir[3 + x * 3] = Math.max(0, v - 8);
+    }
+    satirlar.push(satir);
+  }
+  const parca = (tur, veri) => {
+    const govde = Buffer.concat([Buffer.from(tur), veri]);
+    const bas = Buffer.alloc(4);
+    bas.writeUInt32BE(veri.length);
+    const son = Buffer.alloc(4);
+    son.writeUInt32BE(crc32(govde) >>> 0);
+    return Buffer.concat([bas, govde, son]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(en, 0);
+  ihdr.writeUInt32BE(boy, 4);
+  ihdr[8] = 8;    // bit derinliği
+  ihdr[9] = 2;    // renk tipi: RGB
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    parca('IHDR', ihdr),
+    parca('IDAT', deflateSync(Buffer.concat(satirlar), { level: 6 })),
+    parca('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+/* --------------------------------------------------------------- sunucu -- */
+
+const TURLER = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+};
+
+function sunucuBaslat() {
+  const s = createServer(async (istek, yanit) => {
+    try {
+      let yol = decodeURIComponent(new URL(istek.url, 'http://x').pathname);
+      if (yol.endsWith('/')) yol += 'index.html';
+      // Dizin dışına çıkmayı engelle
+      const tam = join(KOK, normalize(yol).replace(/^(\.\.[/\\])+/, ''));
+      if (!tam.startsWith(KOK)) { yanit.writeHead(403).end(); return; }
+      const govde = await readFile(tam);
+      yanit.writeHead(200, { 'content-type': TURLER[extname(tam)] || 'application/octet-stream' });
+      yanit.end(govde);
+    } catch {
+      yanit.writeHead(404, { 'content-type': 'text/plain' }).end('yok');
+    }
+  });
+  return new Promise((coz) => s.listen(0, '127.0.0.1', () => coz({ s, port: s.address().port })));
+}
+
+/* ---------------------------------------------------------------- test --- */
+
+let hata = 0;
+let gecen = 0;
+function bak(kosul, ad) {
+  if (kosul) { gecen += 1; console.log(`  ok  ${ad}`); }
+  else { hata += 1; console.error(`HATA  ${ad}`); }
+}
+
+const { s: sunucu, port } = await sunucuBaslat();
+const gecici = await mkdtemp(join(tmpdir(), 'fason-e2e-'));
+const gorselYolu = join(gecici, 'kagit.png');
+await writeFile(gorselYolu, testGorseli());
+
+const tarayici = await chromium.launch();
+const baglam = await tarayici.newContext({ acceptDownloads: true });
+const p = await baglam.newPage();
+
+const konsol = [];
+p.on('console', (m) => { if (m.type() === 'error') konsol.push(m.text()); });
+p.on('pageerror', (e) => konsol.push(`pageerror: ${e.message}`));
+
+// Blob indirmelerinde başlıksız Chromium her dosyaya "download" der; bizim
+// kodun gerçekten yazdığı adı görmek için download niteliğini yakalıyoruz.
+await p.addInitScript(() => {
+  window.__inenAdlar = [];
+  const asil = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function kaydet(...args) {
+    if (this.download) window.__inenAdlar.push(this.download);
+    return asil.apply(this, args);
+  };
+});
+
+let istekGovdesi = null;
+let istekBasliklari = null;
+await p.route('https://api.anthropic.com/**', async (yol, istek) => {
+  istekGovdesi = JSON.parse(istek.postData() || '{}');
+  istekBasliklari = await istek.allHeaders();
+  await yol.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      id: 'msg_test',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-opus-5',
+      content: [{ type: 'text', text: JSON.stringify(SAHTE_SONUC) }],
+      parsed_output: SAHTE_SONUC,
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1750, output_tokens: 430 },
+    }),
+  });
+});
+
+try {
+  await p.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
+  bak(await p.title() === 'Fason Kesim — Ölçü Okuyucu', 'sayfa açıldı');
+
+  await p.fill('#api-anahtari', `sk-ant-api03-${'a'.repeat(40)}`);
+  bak(await p.textContent('#anahtar-durum') === 'kayıtlı', 'anahtar biçimi kabul edildi');
+
+  await p.setInputFiles('#dosya-girisi', gorselYolu);
+  await p.waitForSelector('.foto img', { timeout: 15000 });
+  const altyazi = await p.textContent('.foto figcaption');
+  bak(/1\. sayfa/.test(altyazi), 'fotoğraf eklendi');
+  bak(/×1568|1568×/.test(altyazi), `uzun kenar 1568'e indirildi (${altyazi})`);
+
+  bak(!(await p.isDisabled('#oku-dugmesi')), 'oku düğmesi açıldı');
+  await p.click('#oku-dugmesi');
+  await p.waitForSelector('#tablo-govde tr', { timeout: 20000 });
+
+  bak(istekGovdesi?.model === 'claude-opus-5', 'istek doğru modele gitti');
+  bak(istekGovdesi?.output_config?.format?.type === 'json_schema', 'yapılandırılmış çıktı istendi');
+  bak(istekGovdesi?.max_tokens > 0, 'max_tokens verildi');
+  bak(istekGovdesi?.messages?.[0]?.content?.[0]?.type === 'image', 'görsel gönderildi');
+  bak(istekGovdesi?.messages?.[0]?.content?.[0]?.source?.media_type === 'image/jpeg', 'görsel JPEG olarak gitti');
+  bak(istekBasliklari?.['anthropic-dangerous-direct-browser-access'] === 'true', 'tarayıcıdan doğrudan erişim başlığı var');
+  bak(istekBasliklari?.['anthropic-version'] === '2023-06-01', 'sürüm başlığı doğru');
+
+  const satirSay = () => p.locator('#tablo-govde tr').evaluateAll(
+    (trs) => trs.filter((t) => t.querySelector('td.sira')).length,
+  );
+  bak(await satirSay() === 4, 'tabloda 4 satır var');
+  bak(await p.inputValue('#musteri') === 'Öz Demir Mobilya', 'müşteri adı dolduruldu');
+  bak((await p.inputValue('#malzeme')).includes('Suntalam'), 'malzeme dolduruldu');
+  bak(await p.locator('tr.guven-dusuk').count() === 2, 'düşük güvenli satırlar işaretlendi');
+  bak(await p.locator('tr.guven-orta').count() === 1, 'orta güvenli satır işaretlendi');
+  bak(await p.locator('tr.hatali').count() === 1, 'ölçüsü eksik satır hatalı işaretlendi');
+  bak(await p.locator('#notlar li').count() === 2, 'kâğıt notları gösterildi');
+  bak(await p.locator('#tablo-govde .okunan').first().inputValue() === '720x570  10ad  1U1K',
+    'kâğıtta yazan sütunu dolu');
+  const ozet = (await p.textContent('#ozet')).replace(/\s+/g, ' ');
+  bak(/4 satır/.test(ozet) && /1 eksik satır/.test(ozet), `özet doğru (${ozet})`);
+  bak(/\$0\./.test(await p.textContent('#durum')), 'okuma maliyeti gösterildi');
+
+  await p.fill('#hizli-giris', '600x400 3 2U1K // test');
+  await p.press('#hizli-giris', 'Enter');
+  await p.waitForFunction(
+    () => [...document.querySelectorAll('#tablo-govde tr')].filter((t) => t.querySelector('td.sira')).length === 5,
+    null, { timeout: 5000 },
+  );
+  bak(true, 'elle satır eklendi');
+
+  const [inenXlsx] = await Promise.all([
+    p.waitForEvent('download', { timeout: 20000 }),
+    p.click('#excel-indir'),
+  ]);
+  const xlsxYolu = join(gecici, 'cikti.xlsx');
+  await inenXlsx.saveAs(xlsxYolu);
+  const adlar = await p.evaluate(() => window.__inenAdlar);
+  bak(/^Öz Demir Mobilya \d{4}-\d{2}-\d{2}\.xlsx$/.test(adlar.at(-1)),
+    `dosya adı müşteri + tarihten kuruldu (${adlar.at(-1)})`);
+  const bayt = readFileSync(xlsxYolu);
+  bak(bayt[0] === 0x50 && bayt[1] === 0x4b, 'inen dosya geçerli zip');
+  const icerik = bayt.toString('utf8');
+  bak(icerik.includes('<v>720</v>'), 'ölçü Excel’e sayı olarak gitti');
+  bak(icerik.includes('Öz Demir Mobilya') === false, 'müşteri adı sayfaya değil dosya adına yazıldı');
+  bak(!icerik.includes('okunamadı'), 'ölçüsü eksik satır Excel’e girmedi');
+  bak(icerik.includes('720x570  10ad  1U1K'), 'kâğıtta yazan sütunu Excel’e gitti');
+
+  const [inenCsv] = await Promise.all([
+    p.waitForEvent('download', { timeout: 20000 }),
+    p.click('#csv-indir'),
+  ]);
+  await inenCsv.saveAs(join(gecici, 'cikti.csv'));
+  const adlar2 = await p.evaluate(() => window.__inenAdlar);
+  bak(adlar2.at(-1).endsWith('.csv'), 'CSV de indi');
+
+  // Telefon genişliği: sayfanın tamamı yana kaymamalı, tablo kendi
+  // kutusunda kaymalı. (Bu denetim gerçek bir taşma hatası yakaladı.)
+  await p.setViewportSize({ width: 390, height: 844 });
+  await p.waitForTimeout(300);
+  const tasma = await p.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  bak(tasma <= 1, `telefonda yatay taşma yok (${tasma}px)`);
+
+  bak(konsol.length === 0, `konsol temiz${konsol.length ? `: ${konsol.join(' | ')}` : ''}`);
+} finally {
+  await tarayici.close();
+  sunucu.close();
+}
+
+console.log(`\n${gecen}/${gecen + hata} tarayıcı testi geçti.`);
+if (hata) { console.error('BAŞARISIZ'); process.exit(1); }

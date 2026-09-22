@@ -1,0 +1,17 @@
+{
+  "name": "fason-kesim",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Fason kesim ölçü okuyucu — fotoğraftan Excel'e",
+  "scripts": {
+    "test": "node tests/fason.test.mjs",
+    "test:tarayici": "node tests/e2e.mjs",
+    "sun": "node --run sun:ic",
+    "sun:ic": "npx --yes http-server -p 8099 -s ."
+  },
+  "comment": "Uygulamanın kendisinin hiçbir bağımlılığı yoktur; buradaki tek paket tarayıcı testini koşturmak içindir.",
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  }
+}

@@ -21,8 +21,22 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
       - run: node tests/fason.test.mjs
+
+  # Gerçek tarayıcıda uçtan uca deneme. Dağıtımı buna bağlamıyoruz:
+  # tarayıcı testi takılırsa program yayına çıkmasın diye bir sebep yok,
+  # ama bozulduğunda görünsün istiyoruz.
+  tarayici:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/e2e.mjs
 
   deploy:
     needs: test
@@ -32,7 +46,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      # enablement: Pages ayarını ilk çalıştırmada kendi açar, ayara girmeye gerek yok.
+      # enablement: Pages ayarını açmayı dener. Depo sahibinin
+      # Settings → Pages → Source: "GitHub Actions" seçmesi gerekebilir.
       - uses: actions/configure-pages@v5
         with:
           enablement: true

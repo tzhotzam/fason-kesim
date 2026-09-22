@@ -121,7 +121,24 @@ açılır — ama **okuma** için internet gerekir (model bulutta çalışıyor)
 | `js/depo.js` | Tarayıcı deposu (anahtar, son liste) |
 | `js/yerlesim.js` | **Henüz arayüze bağlı değil** — levha yerleşimi ve fire hesabı, sırada beklesin diye duruyor |
 
-Testler: `node tests/fason.test.mjs`
+**Testler**
+
+```
+node tests/fason.test.mjs   # hesap/ayrıştırma/Excel — bağımlılık yok
+node tests/e2e.mjs          # gerçek tarayıcıda uçtan uca (Playwright ister)
+```
+
+Tarayıcı testi Anthropic'e giden isteği yakalayıp sahte yanıtla karşılar;
+gerçek anahtar ve gerçek para harcamaz ama fotoğraf yükleme, okuma, tablo
+ve Excel üretmenin tamamını gerçekten çalıştırır. Playwright kurulu değilse
+kendini atlar:
+
+```
+npm install && npx playwright install chromium
+```
+
+Uygulamanın kendisinin hiçbir bağımlılığı yok; `package.json` yalnızca bu
+test için duruyor.
 
 ---
 
