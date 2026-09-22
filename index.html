@@ -115,7 +115,33 @@
       <span>Birim</span>
       <select id="birim"><option value="mm">mm</option><option value="cm">cm</option></select>
     </label>
+    <label class="alan">
+      <span>Kâğıttaki ilk sayı</span>
+      <select id="olcu-sirasi">
+        <option value="boy-en">Boy, sonra En</option>
+        <option value="en-boy">En, sonra Boy</option>
+      </select>
+    </label>
   </div>
+
+  <details id="makine-kutusu" class="katlanir">
+    <summary>Makine Excel'i ayarları</summary>
+    <div class="katlanir-ic">
+      <p class="ipucu">
+        Makinenin şablonundaki sütunlara ne yazılacağı. Bir kez ayarlarsın,
+        cihazda kalır.
+      </p>
+      <div class="satir">
+        <label class="alan"><span>PLAKA RENK</span><input type="text" id="plaka-renk" placeholder="BEYAZ"></label>
+        <label class="alan"><span>PLAKA ÖLÇÜ</span><input type="text" id="plaka-olcu" placeholder="2100x2800"></label>
+      </div>
+      <div class="satir">
+        <label class="alan dar"><span>Bant işareti</span><input type="text" id="bant-isareti" placeholder="X"></label>
+        <label class="alan"><span>YÖN — damarlı</span><input type="text" id="yon-damarli" placeholder="DAMARLI"></label>
+        <label class="alan"><span>YÖN — serbest</span><input type="text" id="yon-serbest" placeholder="(boş)"></label>
+      </div>
+    </div>
+  </details>
 
   <div id="notlar" class="notlar" hidden></div>
 
@@ -124,8 +150,8 @@
       <thead>
         <tr>
           <th class="sag">#</th>
-          <th>En</th>
-          <th>Boy</th>
+          <th id="bas-olcu1">Boy</th>
+          <th id="bas-olcu2">En</th>
           <th>Adet</th>
           <th>Bant</th>
           <th>Açıklama</th>
@@ -145,7 +171,8 @@
   <div id="ozet" class="ozet"></div>
 
   <div class="dugmeler">
-    <button type="button" class="dugme birincil buyuk" id="excel-indir">⬇ Excel (.xlsx)</button>
+    <button type="button" class="dugme birincil buyuk" id="makine-indir">⬇ Makine Excel'i</button>
+    <button type="button" class="dugme" id="excel-indir">Okunur Excel</button>
     <button type="button" class="dugme" id="csv-indir">CSV</button>
     <button type="button" class="dugme" id="panoya-kopyala">Panoya kopyala</button>
     <button type="button" class="dugme silik" id="tabloyu-temizle">Tabloyu temizle</button>

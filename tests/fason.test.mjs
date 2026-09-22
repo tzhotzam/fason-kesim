@@ -10,6 +10,10 @@ import { satirCoz, metinCoz } from '../js/parse.js';
 import { yerlestir, parcalariAc, yerlesimDogrula } from '../js/yerlesim.js';
 import { xlsxOlustur, csvOlustur, sutunHarfi } from '../js/xlsx.js';
 import { SEMA, anahtarGecerliBicimde, MODEL } from '../js/ocr.js';
+import {
+  MAKINE_BASLIKLAR, MAKINE_GENISLIK, MAKINE_VARSAYILAN,
+  boyEn, makineKenarlari, makineSatiri, makineSatirlari, makineUyarilari,
+} from '../js/makine.js';
 
 // Testler sırayla ve BEKLENEREK koşar. Eşzamansız bir test'i beklemeyen
 // koşucu, hata fırlatan testi "ok" diye yazıp sonra çöküyordu.
@@ -392,6 +396,103 @@ test('OCR şeması gereken alanları içerir', () => {
 test('model kimliği tarih eki taşımaz', () => {
   assert.equal(MODEL, 'claude-opus-5');
   assert.ok(!/\d{8}$/.test(MODEL), 'model kimliğine tarih eklenmemeli');
+});
+
+/* -------------------------------------------------------------- makine -- */
+
+const mSatir = (a = {}) => ({ en: 2070, boy: 570, adet: 4, bantKod: '2U1K', damar: 'serbest', ...a });
+
+test('makine başlıkları şablonla birebir aynı', () => {
+  assert.deepEqual(MAKINE_BASLIKLAR, [
+    'PLAKA RENK', 'PLAKA ÖLÇÜ', 'ÖLÇÜ BOY', 'ÖLÇÜ EN', 'ÖLÇÜ ADET',
+    '', '', 'YÖN', 'BAND BOY', 'BAND BOY', 'BAND EN', 'BAND EN',
+  ]);
+  assert.equal(MAKINE_BASLIKLAR.length, 12);
+  assert.equal(MAKINE_GENISLIK.length, 12);
+});
+
+test('F ve G sütunları boş kalır', () => {
+  const r = makineSatiri(mSatir(), {});
+  assert.equal(r[5], '');
+  assert.equal(r[6], '');
+});
+
+test('ölçü sırası: kâğıttaki ilk sayı boy sayılır', () => {
+  assert.deepEqual(boyEn({ en: 2070, boy: 570 }, 'boy-en'), { boy: 2070, en: 570 });
+  assert.deepEqual(boyEn({ en: 2070, boy: 570 }, 'en-boy'), { boy: 570, en: 2070 });
+});
+
+test('makine satırı ölçüleri BOY, EN sırasında yazar', () => {
+  const r = makineSatiri(mSatir(), { olcuSirasi: 'boy-en' });
+  assert.equal(r[2], 2070);   // ÖLÇÜ BOY
+  assert.equal(r[3], 570);    // ÖLÇÜ EN
+  assert.equal(r[4], 4);      // ÖLÇÜ ADET
+  const t = makineSatiri(mSatir(), { olcuSirasi: 'en-boy' });
+  assert.equal(t[2], 570);
+  assert.equal(t[3], 2070);
+});
+
+test('2U1K: iki uzun kenar BAND BOY, bir kısa kenar BAND EN', () => {
+  // 2070x570 parçada uzun kenarlar 2070'lik olanlar; kâğıtta ilk sayı boy.
+  const r = makineSatiri(mSatir({ bantKod: '2U1K' }), { bantIsareti: 'X' });
+  assert.deepEqual(r.slice(8, 12), ['X', 'X', 'X', '']);
+});
+
+test('4 kenar bant dört sütunu da doldurur', () => {
+  const r = makineSatiri(mSatir({ bantKod: '4' }), { bantIsareti: 'X' });
+  assert.deepEqual(r.slice(8, 12), ['X', 'X', 'X', 'X']);
+});
+
+test('bantsız satırda dört bant sütunu da boş', () => {
+  const r = makineSatiri(mSatir({ bantKod: '' }), {});
+  assert.deepEqual(r.slice(8, 12), ['', '', '', '']);
+});
+
+test('ölçü sırası değişince bant sütunları da yer değiştirir', () => {
+  const a = makineSatiri(mSatir({ bantKod: '2U1K' }), { olcuSirasi: 'boy-en', bantIsareti: 'X' });
+  const b = makineSatiri(mSatir({ bantKod: '2U1K' }), { olcuSirasi: 'en-boy', bantIsareti: 'X' });
+  assert.deepEqual(a.slice(8, 12), ['X', 'X', 'X', '']);
+  assert.deepEqual(b.slice(8, 12), ['X', '', 'X', 'X']);
+});
+
+test('bant işareti ayarlanabilir', () => {
+  const r = makineSatiri(mSatir({ bantKod: '1U' }), { bantIsareti: '0,4' });
+  assert.ok(r.slice(8, 12).includes('0,4'));
+});
+
+test('YÖN sütunu damara göre dolar', () => {
+  const d = makineSatiri(mSatir({ damar: 'boy' }), { yonDamarli: 'DAMARLI', yonSerbest: '' });
+  const s2 = makineSatiri(mSatir({ damar: 'serbest' }), { yonDamarli: 'DAMARLI', yonSerbest: '' });
+  assert.equal(d[7], 'DAMARLI');
+  assert.equal(s2[7], '');
+});
+
+test('plaka bilgisi her satıra yazılır', () => {
+  const satirlar = makineSatirlari([mSatir(), mSatir({ en: 396 })],
+    { plakaRenk: 'BEYAZ', plakaOlcu: '2100x2800' });
+  for (const r of satirlar) {
+    assert.equal(r[0], 'BEYAZ');
+    assert.equal(r[1], '2100x2800');
+  }
+});
+
+test('makine uyarıları eksikleri yakalar', () => {
+  const u = makineUyarilari([mSatir({ bantKod: '' })], { ...MAKINE_VARSAYILAN });
+  assert.ok(u.some((x) => /PLAKA RENK/.test(x)));
+  assert.ok(u.some((x) => /bant kodu yok/.test(x)));
+});
+
+test('makine biçimi geçerli xlsx üretir', async () => {
+  const blob = xlsxOlustur({
+    sayfaAdi: 'Sayfa1',
+    basliklar: MAKINE_BASLIKLAR,
+    satirlar: makineSatirlari([mSatir()], { plakaRenk: 'BEYAZ', plakaOlcu: '2100x2800' }),
+    genislikler: MAKINE_GENISLIK,
+  });
+  const metin = Buffer.from(await blob.arrayBuffer()).toString('utf8');
+  assert.ok(metin.includes('PLAKA RENK'));
+  assert.ok(metin.includes('BAND BOY'));
+  assert.ok(metin.includes('<v>2070</v>'));
 });
 
 test('API anahtarı biçim denetimi', () => {

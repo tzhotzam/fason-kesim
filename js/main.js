@@ -5,7 +5,11 @@ import { fotograftanOku, anahtarGecerliBicimde, MODEL } from './ocr.js';
 import { xlsxOlustur, csvOlustur, indir } from './xlsx.js';
 import { bantKodCoz, bantKodYaz, kimlik, yuvarla } from './olcu.js';
 import { satirCoz } from './parse.js';
-import { apiAnahtari, sonIs, depoCalisiyor } from './depo.js';
+import { apiAnahtari, sonIs, ayarlar, depoCalisiyor } from './depo.js';
+import {
+  MAKINE_BASLIKLAR, MAKINE_GENISLIK, MAKINE_VARSAYILAN,
+  makineSatirlari, makineUyarilari,
+} from './makine.js';
 
 const APP_VERSION = '2026-09-21-a';
 
@@ -45,7 +49,11 @@ const D = {
   musteri: '',
   malzeme: '',
   birim: 'mm',
+  // Kâğıttaki ilk sayı boy mu en mi? Makine BOY/EN sırasında istiyor;
+  // yanlış sıra kesilene kadar fark edilmeyecek bir hata olur.
+  olcuSirasi: 'boy-en',
   notlar: [],
+  makine: { ...MAKINE_VARSAYILAN },
 };
 
 let istekKontrol = null;
@@ -70,6 +78,16 @@ const ge = {
   musteri: $('musteri'),
   malzeme: $('malzeme'),
   birim: $('birim'),
+  olcuSirasi: $('olcu-sirasi'),
+  basOlcu1: $('bas-olcu1'),
+  basOlcu2: $('bas-olcu2'),
+  makineKutusu: $('makine-kutusu'),
+  plakaRenk: $('plaka-renk'),
+  plakaOlcu: $('plaka-olcu'),
+  bantIsareti: $('bant-isareti'),
+  yonDamarli: $('yon-damarli'),
+  yonSerbest: $('yon-serbest'),
+  makine: $('makine-indir'),
   notlar: $('notlar'),
   govde: $('tablo-govde'),
   hizliGiris: $('hizli-giris'),
@@ -267,6 +285,9 @@ function sayiya(v) {
 
 function tabloCiz() {
   ge.bolumTablo.hidden = D.satirlar.length === 0 && D.notlar.length === 0;
+  const [bir, iki] = olcuAdlari();
+  ge.basOlcu1.textContent = bir;
+  ge.basOlcu2.textContent = iki;
   ge.govde.textContent = '';
 
   D.satirlar.forEach((s, i) => {
@@ -412,9 +433,15 @@ function ozetCiz() {
 
 /* --------------------------------------------------------------- çıktı --- */
 
+/** Kâğıttaki birinci ve ikinci sayının adı. */
+function olcuAdlari() {
+  return D.olcuSirasi === 'en-boy' ? ['En', 'Boy'] : ['Boy', 'En'];
+}
+
 function basliklar() {
   const b = D.birim;
-  return ['Sıra', `En (${b})`, `Boy (${b})`, 'Adet', 'Bant', 'Açıklama', 'Kâğıtta yazan', 'Güven'];
+  const [bir, iki] = olcuAdlari();
+  return ['Sıra', `${bir} (${b})`, `${iki} (${b})`, 'Adet', 'Bant', 'Açıklama', 'Kâğıtta yazan', 'Güven'];
 }
 
 const GUVEN_ADI = { yuksek: 'yüksek', orta: 'orta', dusuk: 'DÜŞÜK — kontrol et' };
@@ -456,6 +483,24 @@ function excelIndir() {
   bildir('tamam', `${satirlar.length} satır Excel'e aktarıldı.`);
 }
 
+function makineIndir() {
+  const gecerli = D.satirlar.filter((s) => !satirDenetle(s).hata);
+  if (!gecerli.length) { bildir('hata', 'Aktarılacak geçerli satır yok.'); return; }
+
+  const uyarilar = makineUyarilari(gecerli, D.makine);
+  const blob = xlsxOlustur({
+    sayfaAdi: 'Sayfa1',
+    basliklar: MAKINE_BASLIKLAR,
+    satirlar: makineSatirlari(gecerli, D.makine),
+    genislikler: MAKINE_GENISLIK,
+  });
+  indir(blob, dosyaAdi('xlsx').replace('.xlsx', ' MAKINE.xlsx'));
+
+  const kuyruk = uyarilar.length ? ` Dikkat: ${uyarilar.join(' ')}` : '';
+  bildir(uyarilar.length ? 'hata' : 'tamam',
+    `${gecerli.length} satır makine biçiminde indirildi.${kuyruk}`);
+}
+
 function csvIndir() {
   const satirlar = ciktiSatirlari();
   if (!satirlar.length) { bildir('hata', 'Aktarılacak geçerli satır yok.'); return; }
@@ -486,6 +531,7 @@ function kaydet() {
     musteri: D.musteri,
     malzeme: D.malzeme,
     birim: D.birim,
+    olcuSirasi: D.olcuSirasi,
     notlar: D.notlar,
     satirlar: D.satirlar,
   });
@@ -497,11 +543,13 @@ function geriYukle() {
   D.musteri = s.musteri || '';
   D.malzeme = s.malzeme || '';
   D.birim = s.birim === 'cm' ? 'cm' : 'mm';
+  if (s.olcuSirasi === 'en-boy' || s.olcuSirasi === 'boy-en') D.olcuSirasi = s.olcuSirasi;
   D.notlar = Array.isArray(s.notlar) ? s.notlar : [];
   D.satirlar = s.satirlar.map((x) => yeniSatir(x));
   ge.musteri.value = D.musteri;
   ge.malzeme.value = D.malzeme;
   ge.birim.value = D.birim;
+  ge.olcuSirasi.value = D.olcuSirasi;
   tabloCiz();
   bildir('', 'Önceki liste geri yüklendi.');
 }
@@ -556,6 +604,21 @@ function baglantilar() {
   ge.musteri.addEventListener('input', () => { D.musteri = ge.musteri.value; kaydet(); });
   ge.malzeme.addEventListener('input', () => { D.malzeme = ge.malzeme.value; kaydet(); });
   ge.birim.addEventListener('change', () => { D.birim = ge.birim.value; tabloCiz(); });
+  ge.olcuSirasi.addEventListener('change', () => {
+    D.olcuSirasi = ge.olcuSirasi.value;
+    tabloCiz();
+  });
+
+  for (const [alan, oge] of [
+    ['plakaRenk', ge.plakaRenk], ['plakaOlcu', ge.plakaOlcu],
+    ['bantIsareti', ge.bantIsareti], ['yonDamarli', ge.yonDamarli],
+    ['yonSerbest', ge.yonSerbest],
+  ]) {
+    oge.addEventListener('input', () => {
+      D.makine[alan] = oge.value;
+      ayarlar.koy({ olcuSirasi: D.olcuSirasi, makine: D.makine });
+    });
+  }
 
   const ekle = () => {
     const ham = ge.hizliGiris.value.trim();
@@ -582,6 +645,7 @@ function baglantilar() {
     if (e.key === 'Enter') { e.preventDefault(); ekle(); }
   });
 
+  ge.makine.addEventListener('click', makineIndir);
   ge.excel.addEventListener('click', excelIndir);
   ge.csv.addEventListener('click', csvIndir);
   ge.kopyala.addEventListener('click', panoyaKopyala);
@@ -608,6 +672,16 @@ function baglantilar() {
 
 function basla() {
   baglantilar();
+
+  const kayitli = ayarlar.al({ olcuSirasi: 'boy-en', makine: { ...MAKINE_VARSAYILAN } });
+  D.olcuSirasi = kayitli.olcuSirasi === 'en-boy' ? 'en-boy' : 'boy-en';
+  D.makine = { ...MAKINE_VARSAYILAN, ...(kayitli.makine || {}) };
+  ge.olcuSirasi.value = D.olcuSirasi;
+  ge.plakaRenk.value = D.makine.plakaRenk;
+  ge.plakaOlcu.value = D.makine.plakaOlcu;
+  ge.bantIsareti.value = D.makine.bantIsareti;
+  ge.yonDamarli.value = D.makine.yonDamarli;
+  ge.yonSerbest.value = D.makine.yonSerbest;
 
   ge.anahtar.value = apiAnahtari.al();
   if (ge.anahtar.value) ge.anahtarKutusu.open = false;

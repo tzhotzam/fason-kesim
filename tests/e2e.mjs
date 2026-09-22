@@ -229,6 +229,26 @@ try {
   bak(!icerik.includes('okunamadı'), 'ölçüsü eksik satır Excel’e girmedi');
   bak(icerik.includes('720x570  10ad  1U1K'), 'kâğıtta yazan sütunu Excel’e gitti');
 
+  // Makine biçimi: şablonun sütun düzeniyle birebir inmeli.
+  await p.click('#makine-kutusu > summary');
+  await p.fill('#plaka-renk', 'BEYAZ');
+  await p.fill('#plaka-olcu', '2100x2800');
+  await p.fill('#bant-isareti', 'X');
+  const [inenMakine] = await Promise.all([
+    p.waitForEvent('download', { timeout: 20000 }),
+    p.click('#makine-indir'),
+  ]);
+  const makineYolu = join(gecici, 'makine.xlsx');
+  await inenMakine.saveAs(makineYolu);
+  const adlarM = await p.evaluate(() => window.__inenAdlar);
+  bak(adlarM.at(-1).endsWith(' MAKINE.xlsx'), `makine dosyası ayrı adla indi (${adlarM.at(-1)})`);
+  const makineIcerik = readFileSync(makineYolu).toString('utf8');
+  for (const baslik of ['PLAKA RENK', 'PLAKA ÖLÇÜ', 'ÖLÇÜ BOY', 'ÖLÇÜ EN', 'ÖLÇÜ ADET', 'YÖN', 'BAND BOY', 'BAND EN']) {
+    bak(makineIcerik.includes(baslik), `makine başlığı yerinde: ${baslik}`);
+  }
+  bak(makineIcerik.includes('BEYAZ') && makineIcerik.includes('2100x2800'),
+    'plaka bilgisi satırlara yazıldı');
+
   const [inenCsv] = await Promise.all([
     p.waitForEvent('download', { timeout: 20000 }),
     p.click('#csv-indir'),

@@ -16,6 +16,7 @@ const DOSYALAR = [
   './js/xlsx.js',
   './js/olcu.js',
   './js/parse.js',
+  './js/makine.js',
   './js/yerlesim.js',
   './js/depo.js',
   './assets/icon.svg',

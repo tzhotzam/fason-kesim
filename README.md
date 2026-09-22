@@ -98,6 +98,31 @@ dondurulmuş ve süzgeç açık gelir.
 
 ---
 
+## Makine Excel'i
+
+`⬇ Makine Excel'i` düğmesi, optimizasyon programının beklediği şablonla
+birebir aynı sütun düzeninde dosya üretir:
+
+| A | B | C | D | E | F | G | H | I | J | K | L |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| PLAKA RENK | PLAKA ÖLÇÜ | ÖLÇÜ BOY | ÖLÇÜ EN | ÖLÇÜ ADET | *(boş)* | *(boş)* | YÖN | BAND BOY | BAND BOY | BAND EN | BAND EN |
+
+Dikkat edilecek iki nokta:
+
+- **Makine önce BOY sonra EN istiyor.** Kâğıtta hangisinin önce yazıldığı
+  müşteriye göre değişiyor, bu yüzden "Kâğıttaki ilk sayı" ayarı var.
+  Yanlış sıra, parça kesilene kadar fark edilmeyecek bir hatadır — tablonun
+  sütun başlıkları da bu ayara göre değişir ki gözden kaçmasın.
+- **Dört ayrı bant sütunu.** `BAND BOY` ikilisi boy uzunluğundaki iki kenar,
+  `BAND EN` ikilisi en uzunluğundaki iki kenar. Programdaki `1U1K` kodu
+  bu dört hücreye açılır.
+
+"Makine Excel'i ayarları" bölümünden PLAKA RENK / PLAKA ÖLÇÜ, bantlı
+kenara yazılacak işaret ve YÖN sütununun yazımı ayarlanır; bir kez
+girilir, cihazda kalır.
+
+---
+
 ## Kurulum
 
 Kurulum yok. <https://tzhotzam.github.io/fason-kesim/> adresini aç.
@@ -117,6 +142,7 @@ açılır — ama **okuma** için internet gerekir (model bulutta çalışıyor)
 | `js/xlsx.js` | `.xlsx` ve CSV yazar — dış kütüphane yok, zip'i kendi kurar |
 | `js/olcu.js` | Kenar bandı / ölçü matematiği, doğrulama |
 | `js/parse.js` | `720x570 10 1U1K` gibi satırları çözer |
+| `js/makine.js` | Makinenin şablonuna birebir uyan Excel çıktısı |
 | `js/main.js` | Arayüz |
 | `js/depo.js` | Tarayıcı deposu (anahtar, son liste) |
 | `js/yerlesim.js` | **Henüz arayüze bağlı değil** — levha yerleşimi ve fire hesabı, sırada beklesin diye duruyor |
