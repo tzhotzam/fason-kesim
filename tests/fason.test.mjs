@@ -1,5 +1,6 @@
 // Tarayıcısız doğrulama:  node tests/fason.test.mjs
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import {
   bantKodCoz, bantKodYaz, uzunKisa, kesimOlcusu, bitmisOlcu, bantUzunlugu,
@@ -556,6 +557,41 @@ test('makine biçimi geçerli xlsx üretir', async () => {
   assert.ok(metin.includes('PLAKA RENK'));
   assert.ok(metin.includes('BAND BOY'));
   assert.ok(metin.includes('<v>2070</v>'));
+});
+
+/* -------------------------------------------------------------- sürüm --- */
+
+test('sürüm numarası dört yerde de aynı', () => {
+  // Sürüm değişmezse tarayıcı eski dosyaları önbellekten veriyor ve
+  // kullanıcı yayınlanan düzeltmeyi göremiyor. Bir kez unutuldu; bir daha
+  // unutulmasın diye test.
+  const oku = (yol) => readFileSync(new URL(yol, import.meta.url), 'utf8');
+  const html = oku('../index.html');
+  const main = oku('../js/main.js');
+  const sw = oku('../sw.js');
+
+  const meta = html.match(/name="app-version" content="([^"]+)"/)?.[1];
+  const satirIci = html.match(/var V = '([^']+)'/)?.[1];
+  const uygulama = main.match(/const APP_VERSION = '([^']+)'/)?.[1];
+  const onbellek = sw.match(/const ONBELLEK = 'fason-kesim-([^']+)'/)?.[1];
+
+  assert.ok(meta, 'index.html meta sürümü bulunamadı');
+  assert.equal(satirIci, meta, 'index.html içindeki kurtarma betiği meta ile uyuşmuyor');
+  assert.equal(uygulama, meta, 'main.js APP_VERSION meta ile uyuşmuyor');
+  assert.equal(onbellek, meta, 'sw.js önbellek adı meta ile uyuşmuyor');
+});
+
+test('servis işçisi bütün uygulama dosyalarını önbelleğe alıyor', () => {
+  // Önbellek listesinden düşen bir modül, çevrimdışı açılışta uygulamayı
+  // sessizce bozar.
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  const listelenen = [...sw.matchAll(/'\.\/js\/([a-z0-9]+\.js)'/g)].map((m) => m[1]);
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  void html;
+  for (const modul of ['main.js', 'ocr.js', 'foto.js', 'xlsx.js', 'olcu.js',
+    'parse.js', 'makine.js', 'depo.js', 'yerlesim.js']) {
+    assert.ok(listelenen.includes(modul), `sw.js ${modul} dosyasını önbelleğe almıyor`);
+  }
 });
 
 test('API anahtarı biçim denetimi', () => {

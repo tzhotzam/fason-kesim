@@ -3,7 +3,7 @@
 // api.anthropic.com'a giden istekler bilerek hiç dokunulmadan geçiyor:
 // okuma isteği her zaman canlı olmalı, önbelleğe alınmamalı.
 
-const ONBELLEK = 'fason-kesim-2026-09-21-a';
+const ONBELLEK = 'fason-kesim-2026-09-22-b';
 
 const DOSYALAR = [
   './',

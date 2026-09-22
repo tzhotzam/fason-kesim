@@ -11,7 +11,7 @@ import {
   makineSatirlari, makineUyarilari,
 } from './makine.js';
 
-const APP_VERSION = '2026-09-21-a';
+const APP_VERSION = '2026-09-22-b';
 
 /**
  * HTML ile JavaScript aynı sürümden mi?
